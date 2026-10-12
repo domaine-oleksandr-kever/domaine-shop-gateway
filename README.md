@@ -135,6 +135,18 @@ products read/write, metaobjects read/write, metaobject definitions, themes, pub
 inventory, locations, markets (read). No orders or customers. Adding a scope requires every
 installed store to re-approve the app once.
 
+Gadget does not release TOML edits to Shopify by itself (the production deploy on 2026-10-12
+left the app without scopes → `failed_grant_with_invalid_scopes` on install). After editing a
+TOML, release it:
+
+```
+npx -y @shopify/cli@latest app deploy --config shopify.app.toml --allow-updates --no-build --message "scopes"
+npx -y @shopify/cli@latest app deploy --config shopify.app.development.toml --allow-updates --no-build --message "scopes"
+```
+
+`shopify.app.toml` (production) is tracked in git and holds only the public client id;
+`shopify.app.development.toml` is git-ignored by Gadget's template.
+
 ### WorkOS settings that must stay on
 
 Connect → Configuration: **Dynamic Client Registration** and **Client ID Metadata Document**
