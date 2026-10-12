@@ -88,7 +88,9 @@ the same connector.
 
 ## Add a store (self-serve)
 
-1. Open `https://<gateway>/`, click **Sign in with Google** (a `@meetdomaine.com` account).
+1. Open `https://<gateway>/` and sign in with Google (a `@meetdomaine.com` account). Other
+   tabs of the same browser are signed in too; a new tab signs in by itself while your
+   AuthKit session lasts. After **Sign out** every tab shows the **Sign in with Google** button.
 2. **Add store**: enter the handle or `<handle>.myshopify.com`. The gateway reserves the
    install for you (15 minutes) and sends you to Shopify's install page for the app. You need
    "Manage apps" on that store (owners of dev stores have it). A handle that Shopify does not
@@ -188,7 +190,8 @@ Ordered by what the demo and the first users need.
 5. **Audit page polish**: request id per call, document hash, pagination beyond 250 rows,
    daily re-check of `env` against the Shopify plan.
 6. **Hardening**: rate limit per user, `Origin` check on `/gw/*`, 409 on alias races,
-   refresh tokens out of `sessionStorage`, App Bridge for the embedded Shopify admin view or a
+   tokens out of `localStorage` (readable by any script on the origin) into an httpOnly
+   session cookie issued by `/gw/oauth/token`, App Bridge for the embedded Shopify admin view or a
    clean "not an embedded app" page.
 7. **Scope trim**: remove the extra sub-scopes Gadget added (`unauthenticated_*`,
    `write_metaobject_definitions`, inventory shipments/transfers) or add `write_publications`

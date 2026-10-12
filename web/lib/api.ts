@@ -1,4 +1,4 @@
-import { accessToken, refreshTokens, signOut } from "./auth";
+import { accessToken, dropTokens, refreshTokens } from "./auth";
 
 /** Fired when the session ends mid-use, so the page can show the sign-in screen. */
 export const SIGNED_OUT_EVENT = "gw:signed-out";
@@ -19,7 +19,7 @@ export async function gwFetch<T>(path: string, options: { method?: string; body?
   let response = await send(path, options);
   if (response.status === 401 && (await refreshTokens())) response = await send(path, options);
   if (response.status === 401) {
-    signOut();
+    dropTokens();
     window.dispatchEvent(new Event(SIGNED_OUT_EVENT));
     throw new ApiError(401, "Your session has ended. Sign in again.");
   }

@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated 2026-10-12 (install probe and admin API timeouts). Update this file in the same change that
+Last updated 2026-10-12 (install probe and admin API timeouts; admin page sign-in shared by tabs). Update this file in the same change that
 alters a flow, a model or a trust boundary.
 
 ## Components
@@ -60,7 +60,19 @@ alters a flow, a model or a trust boundary.
   `resource` for the code grant), forwards the form to AuthKit's `/oauth2/token` and returns
   its status and JSON unchanged, never logged: AuthKit answers the CORS preflight but sends
   no `Access-Control-Allow-Origin` on the POST, so a browser fetch fails.
-- Tokens live in `sessionStorage`; `web/lib/api.ts` refreshes once on 401.
+- Tokens live in `localStorage` (`gw.tokens`), so every tab of the browser is signed in;
+  `web/lib/api.ts` refreshes once on 401 (a refresh that fails because another tab already
+  rotated the refresh token uses that tab's tokens). The PKCE flow record (`gw.oauth-flow`)
+  stays in the `sessionStorage` of the tab that started the flow.
+- A tab without tokens starts the authorize redirect by itself once (`gw.auto-signin` in
+  `sessionStorage`, so a failing callback cannot loop) and shows "Signing you in…"; AuthKit's
+  own session cookie returns a code without the Google screen. The callback returns to the
+  path the sign-in started from (`returnTo`, e.g. `/stores/<id>`). After that one attempt, or
+  after an error, the page shows the "Sign in with Google" button.
+- "Sign out" drops the tokens and sets `gw.signed-out` in `localStorage`: every tab then shows
+  the button, without signing in by itself, until the next sign-in by hand clears it.
+- Ceiling: tokens in `localStorage` are readable by any script on the origin. The upgrade
+  is an httpOnly session cookie issued by `/gw/oauth/token`.
 - Every `/gw/*` route goes through `api/lib/gw.ts`: same `verifyBearer`, same `resolveUser`,
   then a role check per route, JSON errors (`httpError.ts`), audit rows with `tool: "admin"`.
 
@@ -127,5 +139,5 @@ alters a flow, a model or a trust boundary.
 ## Known limits of the current build
 
 See README → TODO / roadmap. In short: sign-in of the admin page not yet verified in a
-browser; dev environment pauses; 250-row pages; no rate limiting; refresh tokens in
-`sessionStorage`; App Bridge removed from the embedded admin view.
+browser; dev environment pauses; 250-row pages; no rate limiting; tokens in
+`localStorage`; App Bridge removed from the embedded admin view.

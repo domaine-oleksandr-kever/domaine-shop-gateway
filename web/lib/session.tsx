@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { ApiError, errorText, gwFetch, SIGNED_OUT_EVENT } from "./api";
-import { accessToken, signOut as dropTokens } from "./auth";
+import { accessToken, signOut as forgetSession } from "./auth";
 import type { Me } from "./types";
 
 export type Session =
@@ -33,7 +33,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(() => {
-    dropTokens();
+    forgetSession();
     setSession({ status: "signed-out", error: null });
   }, []);
 

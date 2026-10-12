@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import { errorText } from "../lib/api";
-import { startSignIn } from "../lib/auth";
+import { autoSignInAllowed, markAutoSignIn, startSignIn } from "../lib/auth";
 import { useSession } from "../lib/session";
 import type { Me } from "../lib/types";
 
@@ -34,14 +34,44 @@ function SignInScreen({ error }: { error: string | null }) {
   const location = useLocation();
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [auto, setAuto] = useState(() => !error && autoSignInAllowed());
+  const autoStarted = useRef(false);
 
   const signIn = () => {
     setBusy(true);
     startSignIn(location.pathname + location.search).catch((reason) => {
       setFailure(errorText(reason));
       setBusy(false);
+      setAuto(false);
     });
   };
+
+  useEffect(() => {
+    if (!auto || autoStarted.current) return;
+    autoStarted.current = true;
+    markAutoSignIn();
+    signIn();
+  }, [auto]);
+
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setAuto(false);
+      setBusy(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
+
+  if (auto) {
+    return (
+      <main className="page narrow">
+        <p className="muted" role="status">
+          Signing you in…
+        </p>
+      </main>
+    );
+  }
 
   const message = failure ?? error;
   return (
