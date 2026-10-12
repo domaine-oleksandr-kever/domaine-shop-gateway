@@ -36,7 +36,9 @@ There are two logins with one identity.
      `/.well-known/oauth-protected-resource`. They register themselves with Dynamic Client
      Registration or a Client ID Metadata Document; both are enabled in WorkOS.
    - The admin page uses a Client ID Metadata Document at `/gw/oauth-client` as its
-     `client_id`; no client is registered in WorkOS by hand.
+     `client_id`; no client is registered in WorkOS by hand. The browser does the
+     authorize redirect; the code and refresh exchanges go through `POST /gw/oauth/token`,
+     because AuthKit's token endpoint sends no CORS header on the POST response.
    - The token carries only `sub`. On first sight of a `sub` the gateway calls AuthKit's
      userinfo endpoint with the same token and stores email and name in the `user` model.
      Emails outside `GATEWAY_ALLOWED_DOMAINS` (default `meetdomaine.com`) are rejected.

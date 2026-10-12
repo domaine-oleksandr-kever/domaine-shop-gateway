@@ -1,6 +1,7 @@
 /**
- * OAuth 2.1 authorization code + PKCE against WorkOS AuthKit, in the browser. The `resource` parameter (RFC 8707)
- * asks for an access token whose audience is the gateway's /mcp resource, the one the backend verifies.
+ * OAuth 2.1 authorization code + PKCE against WorkOS AuthKit: the authorize redirect runs in the browser, the code and
+ * refresh exchanges go through /gw/oauth/token (AuthKit's token endpoint sends no CORS header on the POST). The
+ * `resource` parameter (RFC 8707) asks for an access token whose audience is the gateway's /mcp resource.
  * Tokens live in sessionStorage: they survive a reload, not the tab.
  */
 import type { GatewayConfig } from "./types";
@@ -67,7 +68,7 @@ export async function finishSignIn(params: URLSearchParams): Promise<string> {
     throw new Error("This sign-in link is stale or was not started here. Sign in again.");
   }
   const config = await loadConfig();
-  await requestTokens(config, {
+  await requestTokens({
     grant_type: "authorization_code",
     code,
     redirect_uri: config.redirectUri,
@@ -82,7 +83,7 @@ export function refreshTokens(): Promise<boolean> {
     const refreshToken = readJson<Tokens>(TOKENS_KEY)?.refreshToken;
     if (!refreshToken) return false;
     try {
-      await requestTokens(await loadConfig(), { grant_type: "refresh_token", refresh_token: refreshToken });
+      await requestTokens({ grant_type: "refresh_token", refresh_token: refreshToken });
       return true;
     } catch {
       signOut();
@@ -94,11 +95,11 @@ export function refreshTokens(): Promise<boolean> {
   return refreshRequest;
 }
 
-async function requestTokens(config: GatewayConfig, grant: Record<string, string>): Promise<void> {
-  const response = await fetch(`${config.issuer}/oauth2/token`, {
+async function requestTokens(grant: Record<string, string>): Promise<void> {
+  const response = await fetch("/gw/oauth/token", {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ ...grant, client_id: config.clientId, resource: config.resource }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(grant),
   });
   const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok || typeof body.access_token !== "string") {

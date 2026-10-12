@@ -51,11 +51,16 @@ alters a flow, a model or a trust boundary.
 
 ## Request flow: the admin page
 
-- `web/lib/auth.ts` runs authorization code + PKCE in the browser against AuthKit with
+- `web/lib/auth.ts` runs authorization code + PKCE against AuthKit with
   `client_id` = `https://<base>/gw/oauth-client` (a Client ID Metadata Document served by the
   app), `redirect_uri` = `<base>/auth/callback`, `scope = openid profile email offline_access`
-  and `resource = <base>/mcp`, so the token's `aud` matches what `/mcp` expects. Tokens live
-  in `sessionStorage`; `web/lib/api.ts` refreshes once on 401.
+  and `resource = <base>/mcp`, so the token's `aud` matches what `/mcp` expects.
+- The authorize redirect runs in the browser. The code exchange and the refresh go through
+  `POST /gw/oauth/token` (`api/routes/gw/oauth/POST-token.ts`), which adds `client_id` (and
+  `resource` for the code grant), forwards the form to AuthKit's `/oauth2/token` and returns
+  its status and JSON unchanged, never logged: AuthKit answers the CORS preflight but sends
+  no `Access-Control-Allow-Origin` on the POST, so a browser fetch fails.
+- Tokens live in `sessionStorage`; `web/lib/api.ts` refreshes once on 401.
 - Every `/gw/*` route goes through `api/lib/gw.ts`: same `verifyBearer`, same `resolveUser`,
   then a role check per route, JSON errors (`httpError.ts`), audit rows with `tool: "admin"`.
 
