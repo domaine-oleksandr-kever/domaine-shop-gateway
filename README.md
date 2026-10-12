@@ -91,7 +91,11 @@ the same connector.
 1. Open `https://<gateway>/`, click **Sign in with Google** (a `@meetdomaine.com` account).
 2. **Add store**: enter the handle or `<handle>.myshopify.com`. The gateway reserves the
    install for you (15 minutes) and sends you to Shopify's install page for the app. You need
-   "Manage apps" on that store (owners of dev stores have it).
+   "Manage apps" on that store (owners of dev stores have it). A handle that Shopify does not
+   know is refused at once ("store not found"). If you are not staff on the store, or the app
+   cannot be installed there (a client store that is not a development store), Shopify
+   refuses on its own page after you sign in; the gateway cannot check that beforehand. If
+   Shopify does not open, the page shows the install link to click.
 3. After you approve, the store appears in **My stores** with you as `store-admin`. Dev
    stores are enabled at once; prod stores show as disabled until a global admin enables them.
 4. On the store page add members by email with a role. People who have not signed in yet
@@ -120,7 +124,7 @@ from Gadget's connection.
 
 ```
 yarn install            # once
-yarn test               # vitest: policy, validation, members
+yarn test               # vitest: policy, validation, members, installs
 npx tsc -p tsconfig.api.json --noEmit
 npx -y ggt@latest push  # upload to the development environment
 npx -y ggt@latest status / logs / var list
@@ -178,6 +182,9 @@ Ordered by what the demo and the first users need.
    personal Pro account. Still to do: a Team Owner adds it for the Domaine organization.
 4. **WorkOS production environment** with Domaine's own Google OAuth client (the Staging one
    uses WorkOS demo credentials) and Email + Password disabled.
+4a. ~~Install diagnostics~~ DONE 2026-10-12: each `/gw/installs` call logs one `install request` line
+   (`outcome`, `probe`, `durationMs`); read it with `npx -y ggt@latest logs --env production`
+   when an "Add store" report comes in.
 5. **Audit page polish**: request id per call, document hash, pagination beyond 250 rows,
    daily re-check of `env` against the Shopify plan.
 6. **Hardening**: rate limit per user, `Origin` check on `/gw/*`, 409 on alias races,

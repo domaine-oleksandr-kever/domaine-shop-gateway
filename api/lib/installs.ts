@@ -1,12 +1,15 @@
 import type { api as gadgetApi, logger as gadgetLogger } from "gadget-server";
 import { recordAdminEvent } from "./audit";
-import { HttpError } from "./httpError";
 import type { GatewayUser } from "./identity";
 
 type Api = typeof gadgetApi;
 type Logger = typeof gadgetLogger;
 
 const CLAIM_WINDOW_MS = 15 * 60 * 1000;
+const PROBE_TIMEOUT_MS = 8000;
+
+export type ShopProbe = "exists" | "missing" | "timeout" | "unreachable";
+export type ReserveOutcome = "reserved" | "already-installed" | "conflict";
 
 export const devDashboardUrl = "https://dev.shopify.com/dashboard";
 
@@ -18,21 +21,42 @@ export function shopInstallUrl(shopDomain: string, apiKeys: readonly string[]): 
   return apiKeys.length === 1 ? `https://${shopDomain}/admin/oauth/install?client_id=${encodeURIComponent(apiKeys[0])}` : null;
 }
 
+/**
+ * Asks the storefront whether the shop exists: only a 404 means "missing"; a redirect (password page, login) or any
+ * other answer means it exists. `timeout` and `unreachable` say nothing about the shop and must not block an install.
+ */
+export async function probeShop(shopDomain: string, fetchImpl: typeof fetch = fetch, timeoutMs = PROBE_TIMEOUT_MS): Promise<ShopProbe> {
+  try {
+    const response = await fetchImpl(`https://${shopDomain}/`, {
+      method: "HEAD",
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return response.status === 404 ? "missing" : "exists";
+  } catch (error) {
+    return error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError") ? "timeout" : "unreachable";
+  }
+}
+
 /** Reserves the shop for this user for 15 minutes so the install that follows makes them its store-admin. */
-export async function reserveInstall(api: Api, logger: Logger, user: GatewayUser, shopDomain: string, now = new Date()): Promise<void> {
+export async function reserveInstall(
+  api: Api,
+  logger: Logger,
+  user: GatewayUser,
+  shopDomain: string,
+  now = new Date()
+): Promise<ReserveOutcome> {
   const installed = await api.shopifyShop.maybeFindFirst({
     filter: { myshopifyDomain: { equals: shopDomain }, state: { inState: "created.installed" } },
     select: { id: true },
   });
-  if (installed) throw new HttpError(409, "this store is already connected: ask its store-admin for access");
+  if (installed) return "already-installed";
 
   const pending = await api.pendingInstall.maybeFindFirst({
     filter: { shopDomain: { equals: shopDomain } },
     select: { id: true, userId: true, expiresAt: true },
   });
-  if (pending && pending.userId !== user.id && (pending.expiresAt?.getTime() ?? 0) > now.getTime()) {
-    throw new HttpError(409, "someone else is installing this store: try again in 15 minutes");
-  }
+  if (pending && pending.userId !== user.id && (pending.expiresAt?.getTime() ?? 0) > now.getTime()) return "conflict";
   const fields = { user: { _link: user.id }, expiresAt: new Date(now.getTime() + CLAIM_WINDOW_MS) };
   if (pending) await api.pendingInstall.update(pending.id, fields);
   else await api.pendingInstall.create({ shopDomain, ...fields });
@@ -42,6 +66,7 @@ export async function reserveInstall(api: Api, logger: Logger, user: GatewayUser
     operationType: "install-requested",
     reason: `install started for ${shopDomain}`,
   });
+  return "reserved";
 }
 
 /** Makes the user who reserved this shop its store-admin; an install nobody reserved is only audited. Never throws: a failed claim must not fail the Shopify install. */

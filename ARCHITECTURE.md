@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated 2026-10-12 (commit after ebdf1b6). Update this file in the same change that
+Last updated 2026-10-12 (install probe and admin API timeouts). Update this file in the same change that
 alters a flow, a model or a trust boundary.
 
 ## Components
@@ -66,10 +66,19 @@ alters a flow, a model or a trust boundary.
 
 ## Store onboarding (self-serve)
 
-1. `POST /gw/installs { shop }` → `validate.ts` normalizes the domain → `pendingInstall`
+1. `POST /gw/installs { shop }` → `validate.ts` normalizes the domain → `probeShop`
+   (`installs.ts`) sends one `HEAD https://<shop>/` without following redirects, 8 s timeout:
+   404 → "store not found"; a timeout or network failure does not block → `pendingInstall`
    row (unique per domain, 15 min) → returns the Shopify install URL
    `https://<shop>/admin/oauth/install?client_id=<app key>` (key from
-   `connections.shopify.apiKeys`; never in git) or manual instructions.
+   `connections.shopify.apiKeys`; never in git) or manual instructions. Each call logs one
+   `install request` line: domain, `outcome` (reserved / exists-404 / already-installed /
+   conflict), `probe` (exists / missing / timeout / unreachable) and `durationMs`
+   (`ggt logs --env production`).
+   The page then shows "Opening Shopify…" with the install URL as a fallback link and
+   navigates there. Whether the user is staff on the store and whether the app can be
+   installed there (custom distribution, non-dev store) only Shopify knows: it refuses on its
+   own page. Every admin API call from the page gives up after 20 s with a readable error.
 2. Shopify runs the OAuth install; Gadget's connection stores the offline token and calls
    the `shopifyShop.install` action.
 3. `install.ts` → `shopDefaults.ts` sets `env` from the plan (`partner_test`, `development`,
