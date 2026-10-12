@@ -107,12 +107,13 @@ alters a flow, a model or a trust boundary.
 
 ## Environments and URLs
 
-| | Development | Production (planned) |
+| | Development | Production |
 |---|---|---|
 | Gadget URL | `https://domaine-shop-gateway--development.gadget.app` | `https://domaine-shop-gateway.gadget.app` |
 | Shopify app | `domaine-shop-gateway-dev` | `domaine-shop-gateway` |
 | WorkOS | Staging environment, resource indicator = dev `/mcp` | Production environment, own Google client |
 | Pauses when idle | yes (15 min) | no |
+| State | development only | live since 2026-10-12 |
 
 ## Known limits of the current build
 

@@ -5,8 +5,8 @@ from Claude Code or claude.ai, with a role per store and production stores read-
 keeps Shopify tokens on a laptop, nobody logs into the Shopify CLI, and the rules live on the
 server.
 
-Status (2026-10-12): working prototype on the Gadget **development** environment with two
-of the owner's dev stores. See [TODO / roadmap](#todo--roadmap) for what is still open and
+Status (2026-10-12): working prototype, deployed to the Gadget **production** environment, with three
+dev stores. See [TODO / roadmap](#todo--roadmap) for what is still open and
 [ARCHITECTURE.md](ARCHITECTURE.md) for the internals.
 
 ## What it is
@@ -18,8 +18,8 @@ of the owner's dev stores. See [TODO / roadmap](#todo--roadmap) for what is stil
 | Identity provider | WorkOS AuthKit, workspace `kever-sandbox`, environment Staging, domain `meaningful-pink-49-staging.authkit.app` | Google sign-in, OAuth 2.1 server for MCP clients and for the admin page |
 | Clients | Claude Code (`claude mcp add`), claude.ai custom connector (same URL), Claude desktop through the connector | Call `stores`, `use_store`, `query`, `whoami` |
 
-Development URL: `https://domaine-shop-gateway--development.gadget.app`
-(production, after `ggt deploy`: `https://domaine-shop-gateway.gadget.app`).
+Production URL: `https://domaine-shop-gateway.gadget.app` (deployed 2026-10-12);
+development URL (pauses when idle): `https://domaine-shop-gateway--development.gadget.app`.
 
 ## How authentication works
 
@@ -70,7 +70,7 @@ There are two logins with one identity.
 ## Use it from Claude Code
 
 ```
-claude mcp add --transport http --scope user domaine-shop-gateway https://domaine-shop-gateway--development.gadget.app/mcp
+claude mcp add --transport http --scope user domaine-shop-gateway https://domaine-shop-gateway.gadget.app/mcp
 ```
 
 Then in Claude Code run `/mcp`, choose `domaine-shop-gateway`, authenticate (browser, Google).
@@ -152,12 +152,14 @@ Hidden Pendant) on a dev store. Steps 1, 2, 3 and 5 ran on `kever-oleksandr-dev-
 
 Ordered by what the demo and the first users need.
 
-1. **Verify the admin page sign-in** end to end (PKCE through the metadata-document client;
-   confirm the token's `aud` is `/mcp`), then "Add store" on a fresh dev store and the
-   store-admin claim.
-2. **Deploy to the Gadget production environment** (`ggt deploy`), re-point the WorkOS
-   resource indicator and the Claude Code / connector URLs to `https://domaine-shop-gateway.gadget.app/mcp`,
-   keep the dev URL for development only.
+1. ~~Verify the admin page sign-in, "Add store" and the store-admin claim~~ DONE 2026-10-12 on dev.
+2. ~~Deploy to the Gadget production environment~~ DONE 2026-10-12. Still to do on production:
+   install the production Shopify app `domaine-shop-gateway` on the stores, add the WorkOS
+   resource indicator `https://domaine-shop-gateway.gadget.app/mcp` (default), sign in once on
+   the production page; keep the dev URL for development only.
+2a. **Show uninstalled stores** in `stores()` and on the page as "uninstalled — reinstall"
+   instead of hiding them (roles and alias survive an uninstall; today the store just
+   disappears until reinstalled).
 3. **Add the claude.ai connector** on the production URL and test from chat and the desktop app.
 4. **WorkOS production environment** with Domaine's own Google OAuth client (the Staging one
    uses WorkOS demo credentials) and Email + Password disabled.
