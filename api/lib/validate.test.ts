@@ -40,16 +40,20 @@ describe("parseStoreRole", () => {
 });
 
 describe("normalizeMemberEmail", () => {
-  const domains = ["meetdomaine.com"];
+  const allowed = (email: string) => email.endsWith("@meetdomaine.com") || email === "guest@example.org";
 
   it("lower-cases an allowed email", () => {
-    expect(normalizeMemberEmail(" Jane.Doe@MeetDomaine.com ", domains)).toBe("jane.doe@meetdomaine.com");
+    expect(normalizeMemberEmail(" Jane.Doe@MeetDomaine.com ", allowed)).toBe("jane.doe@meetdomaine.com");
+  });
+
+  it("accepts an individually allowed address", () => {
+    expect(normalizeMemberEmail("Guest@Example.org", allowed)).toBe("guest@example.org");
   });
 
   it.each(["jane@example.com", "jane@meetdomaine.com.evil.io", "not-an-email", "a b@meetdomaine.com"])(
     "rejects %j",
     (email) => {
-      expect(normalizeMemberEmail(email, domains)).toBeNull();
+      expect(normalizeMemberEmail(email, allowed)).toBeNull();
     }
   );
 });

@@ -22,9 +22,9 @@ export function parseStoreRole(role: unknown): StoreRole | null {
   return typeof role === "string" && STORE_ROLES.has(role) ? (role as StoreRole) : null;
 }
 
-/** Lower-cased email when it is well formed and its domain is on the allow-list, else null. */
-export function normalizeMemberEmail(email: string, allowedDomains: readonly string[]): string | null {
+/** Lower-cased email when it is well formed and `isAllowed` accepts it, else null. */
+export function normalizeMemberEmail(email: string, isAllowed: (email: string) => boolean): string | null {
   const normalized = email.trim().toLowerCase();
   if (!EMAIL.test(normalized)) return null;
-  return allowedDomains.includes(normalized.split("@").pop() ?? "") ? normalized : null;
+  return isAllowed(normalized) ? normalized : null;
 }
