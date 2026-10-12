@@ -41,7 +41,14 @@ export const userinfoUrl = `${issuer}/oauth2/userinfo`;
 export const allowedEmailDomains = listFromEnv("GATEWAY_ALLOWED_DOMAINS", "meetdomaine.com").map((domain) =>
   domain.toLowerCase()
 );
+/** Individual addresses allowed in besides the domains (a personal account used for testing). */
+export const allowedEmails = listFromEnv("GATEWAY_ALLOWED_EMAILS", "").map((email) => email.toLowerCase());
 export const adminSubs = listFromEnv("GATEWAY_ADMIN_SUBS", "user_01M4QNZ01BPXAFGZE6AMABFP3A");
+
+export function isEmailAllowed(email: string): boolean {
+  const lower = email.toLowerCase();
+  return allowedEmails.includes(lower) || allowedEmailDomains.includes(lower.split("@").pop() ?? "");
+}
 
 export const shopifyApiVersion = "2026-10";
 export const shopifyTimeoutMs = 25_000;

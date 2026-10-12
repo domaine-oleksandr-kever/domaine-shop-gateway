@@ -1,6 +1,6 @@
 import type { api as gadgetApi, logger as gadgetLogger } from "gadget-server";
 import type { Principal } from "./auth";
-import { adminSubs, allowedEmailDomains, userinfoUrl } from "./config";
+import { adminSubs, isEmailAllowed, userinfoUrl } from "./config";
 import { consumeInvites } from "./members";
 
 type Api = typeof gadgetApi;
@@ -51,7 +51,7 @@ export async function resolveUser(principal: Principal, bearer: string, api: Api
       : existing
     : await createUser(api, principal.sub, changes);
 
-  if (user.email && !allowedEmailDomains.includes(user.email.split("@").pop() ?? "")) {
+  if (user.email && !isEmailAllowed(user.email)) {
     return { user, rejected: "account domain not allowed" };
   }
   if (changes.email) await consumeInvites(api, logger, user);

@@ -41,7 +41,8 @@ There are two logins with one identity.
      because AuthKit's token endpoint sends no CORS header on the POST response.
    - The token carries only `sub`. On first sight of a `sub` the gateway calls AuthKit's
      userinfo endpoint with the same token and stores email and name in the `user` model.
-     Emails outside `GATEWAY_ALLOWED_DOMAINS` (default `meetdomaine.com`) are rejected.
+     Emails outside `GATEWAY_ALLOWED_DOMAINS` (default `meetdomaine.com`) are rejected unless
+     listed in `GATEWAY_ALLOWED_EMAILS`.
 2. **Into a store.** The gateway holds one offline Admin API token per store, obtained when
    the Shopify app is installed on that store. Gadget stores it encrypted in `shopifyShop`.
    Each `query` call uses the token of the chosen store. Per-person rights come from the
@@ -107,6 +108,7 @@ the Dev Dashboard; the claim still works by store domain.
 | Name | Default | Purpose |
 |---|---|---|
 | `GATEWAY_ALLOWED_DOMAINS` | `meetdomaine.com` | Comma list of email domains allowed to sign in |
+| `GATEWAY_ALLOWED_EMAILS` | empty | Comma list of individual addresses allowed besides the domains (e.g. a personal test account) |
 | `GATEWAY_ADMIN_SUBS` | the owner's WorkOS `sub` | Comma list of WorkOS user ids that are global admins |
 | `WORKOS_ISSUER` | the staging AuthKit domain | AuthKit domain; change when moving to a WorkOS production environment |
 | `GATEWAY_BASE_URL` | derived from `GADGET_APP`/`GADGET_ENV`, else the dev URL | Public base URL used in metadata and the MCP resource |
