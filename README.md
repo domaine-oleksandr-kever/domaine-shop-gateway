@@ -174,7 +174,8 @@ Ordered by what the demo and the first users need.
 2a. **Show uninstalled stores** in `stores()` and on the page as "uninstalled — reinstall"
    instead of hiding them (roles and alias survive an uninstall; today the store just
    disappears until reinstalled).
-3. **Add the claude.ai connector** on the production URL and test from chat and the desktop app.
+3. ~~Add the claude.ai connector on the production URL and test from chat~~ DONE 2026-10-12 on a
+   personal Pro account. Still to do: a Team Owner adds it for the Domaine organization.
 4. **WorkOS production environment** with Domaine's own Google OAuth client (the Staging one
    uses WorkOS demo credentials) and Email + Password disabled.
 5. **Audit page polish**: request id per call, document hash, pagination beyond 250 rows,
