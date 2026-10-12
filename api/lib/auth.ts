@@ -21,14 +21,18 @@ function failureReason(error: unknown): string {
   return "unknown";
 }
 
+export function bearerToken(authorizationHeader: string | undefined): string | null {
+  return authorizationHeader?.match(/^Bearer\s+(\S+)$/i)?.[1] ?? null;
+}
+
 export async function verifyBearer(authorizationHeader: string | undefined, logger?: Logger): Promise<Principal | null> {
-  const match = authorizationHeader?.match(/^Bearer\s+(\S+)$/i);
-  if (!match) {
+  const token = bearerToken(authorizationHeader);
+  if (!token) {
     logger?.warn({ reason: authorizationHeader ? "scheme" : "missing" }, "bearer rejected");
     return null;
   }
   try {
-    const { payload } = await jwtVerify(match[1], jwks, { issuer, audience: resourceUrl });
+    const { payload } = await jwtVerify(token, jwks, { issuer, audience: resourceUrl });
     if (typeof payload.sub !== "string") throw new errors.JWTClaimValidationFailed("missing sub", payload, "sub");
     return {
       sub: payload.sub,

@@ -1,10 +1,10 @@
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { RouteHandler } from "gadget-server";
-import { verifyBearer } from "../lib/auth";
+import { bearerToken, verifyBearer } from "../lib/auth";
 import { corsOptions, metadataUrl } from "../lib/config";
 import { createMcpServer } from "../lib/mcp";
 
-const route: RouteHandler = async ({ request, reply, logger }) => {
+const route: RouteHandler = async ({ request, reply, logger, api, connections }) => {
   const principal = await verifyBearer(request.headers.authorization, logger);
   if (!principal) {
     return reply
@@ -16,7 +16,8 @@ const route: RouteHandler = async ({ request, reply, logger }) => {
       .send({ error: "unauthorized", error_description: "Authorization needed" });
   }
 
-  const server = createMcpServer(principal);
+  const bearer = bearerToken(request.headers.authorization)!;
+  const server = createMcpServer({ principal, bearer, api, connections, logger });
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   reply.raw.on("close", () => {
     void transport.close();

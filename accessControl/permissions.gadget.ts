@@ -30,7 +30,6 @@ export const permissions: GadgetPermissions = {
             install: true,
             reinstall: true,
             uninstall: true,
-            update: true,
           },
         },
         shopifySync: {

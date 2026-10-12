@@ -21,3 +21,22 @@ export const corsOptions = {
   allowedHeaders: ["Authorization", "Content-Type", "Mcp-Protocol-Version"],
   exposedHeaders: ["WWW-Authenticate"],
 };
+
+function listFromEnv(name: string, fallback: string): string[] {
+  return (process.env[name] ?? fallback)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+export const userinfoUrl = `${issuer}/oauth2/userinfo`;
+export const allowedEmailDomains = listFromEnv("GATEWAY_ALLOWED_DOMAINS", "meetdomaine.com").map((domain) =>
+  domain.toLowerCase()
+);
+export const adminSubs = listFromEnv("GATEWAY_ADMIN_SUBS", "user_01M4QNZ01BPXAFGZE6AMABFP3A");
+
+export const shopifyApiVersion = "2026-10";
+export const shopifyTimeoutMs = 25_000;
+/** Largest tool result, in characters, returned inline; Claude Code spills text results over 50,000 to a file. */
+export const resultCapChars = 45_000;
+export const truncatedPreviewChars = 2_000;
