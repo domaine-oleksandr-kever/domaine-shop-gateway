@@ -15,9 +15,17 @@ export const resourceUrl = `${baseUrl}/mcp`;
 export const metadataUrl = `${baseUrl}/oauth-protected-resource`;
 export const scopesSupported = ["openid", "profile", "email", "offline_access"];
 
+export const webRedirectUri = `${baseUrl}/auth/callback`;
+/**
+ * The admin page's OAuth `client_id`: the URL of its Client ID Metadata Document. AuthKit's OAuth endpoints refuse the
+ * environment client id (`application_not_found`) but accept this document, so no client is registered in WorkOS.
+ */
+export const webClientId = `${baseUrl}/gw/oauth-client`;
+export const mcpCommand = `claude mcp add --transport http --scope user domaine-shop-gateway ${resourceUrl}`;
+
 export const corsOptions = {
   origin: "*",
-  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Authorization", "Content-Type", "Mcp-Protocol-Version"],
   exposedHeaders: ["WWW-Authenticate"],
 };

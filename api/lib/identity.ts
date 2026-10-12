@@ -1,6 +1,7 @@
 import type { api as gadgetApi, logger as gadgetLogger } from "gadget-server";
 import type { Principal } from "./auth";
 import { adminSubs, allowedEmailDomains, userinfoUrl } from "./config";
+import { consumeInvites } from "./members";
 
 type Api = typeof gadgetApi;
 type Logger = typeof gadgetLogger;
@@ -29,7 +30,7 @@ const USER_SELECT = { id: true, sub: true, email: true, name: true, globalRole: 
 const TOUCH_INTERVAL_MS = 10 * 60 * 1000;
 const USERINFO_TIMEOUT_MS = 5_000;
 
-/** Finds or creates the gateway user for a verified bearer, filling email and name from AuthKit userinfo when missing. */
+/** Finds or creates the gateway user for a verified bearer, filling email and name from AuthKit userinfo when missing; the first known email redeems pending invites. */
 export async function resolveUser(principal: Principal, bearer: string, api: Api, logger: Logger): Promise<Resolution> {
   const existing = await findBySub(api, principal.sub);
   const now = new Date();
@@ -53,6 +54,7 @@ export async function resolveUser(principal: Principal, bearer: string, api: Api
   if (user.email && !allowedEmailDomains.includes(user.email.split("@").pop() ?? "")) {
     return { user, rejected: "account domain not allowed" };
   }
+  if (changes.email) await consumeInvites(api, logger, user);
   return { user, rejected: null };
 }
 

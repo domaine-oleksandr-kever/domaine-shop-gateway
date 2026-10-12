@@ -1,98 +1,63 @@
-import {
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-    useLocation,
-} from "react-router";
-import {
-  AppType,
-  Provider as GadgetProvider,
-} from "@gadgetinc/react-shopify-app-bridge";
-import "./app.css";
-import { Suspense } from "react";
-import { api } from "./api";
-import { AppBridgeNavigate } from "./components/AppBridgeNavigate";
-import { FullPageSpinner } from "./components/FullPageSpinner";
+import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 import { ProductionErrorBoundary, DevelopmentErrorBoundary } from "gadget-server/react-router";
-
+import "./app.css";
+import { SessionProvider } from "./lib/session";
 import type { Route } from "./+types/root";
-export const links = () => [
-  {
-    rel: "stylesheet",
-    href: "https://assets.gadget.dev/assets/reset.min.css"
-  }
-];
+
+export const links = () => [{ rel: "stylesheet", href: "https://assets.gadget.dev/assets/reset.min.css" }];
 
 export const meta = () => [
   { charset: "utf-8" },
-  {
-    name: "viewport",
-    content: "width=device-width, initial-scale=1",
-  },
-  {
-    title: "Gadget Shopify React Router app",
-  },
-  {
-    name: "shopify-api-key",
-    suppressHydrationWarning: true,
-    content: "%SHOPIFY_API_KEY%"
-  },
+  { name: "viewport", content: "width=device-width, initial-scale=1" },
+  { title: "Domaine Shop Gateway" },
 ];
 
-export const loader = async ({ context }: Route.LoaderArgs) => {
-  return { gadgetConfig: context.gadgetConfig };
-};
+/** Shopify opens the app URL inside its admin (with `host`) after an install; sign-in cannot run in that frame, so it only links out. */
+export const loader = ({ request }: Route.LoaderArgs) => ({
+  embedded: new URL(request.url).searchParams.has("host"),
+});
 
-export const Layout = ({ children }: { children: React.ReactNode; }) => {
+export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
         <Meta />
-        <script
-          src="https://cdn.shopify.com/shopifycloud/app-bridge.js"
-          suppressHydrationWarning={true}
-        ></script>
-        <script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
         <Links />
       </head>
       <body>
-        <Suspense fallback={<FullPageSpinner />}>
-          {children}
-        </Suspense>
+        {children}
         <ScrollRestoration />
         <Scripts />
       </body>
     </html>
   );
-};
-
+}
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  const { gadgetConfig } = loaderData;
-
-  const location = useLocation();
-
+  if (loaderData.embedded) return <EmbeddedNotice />;
   return (
-    <GadgetProvider
-      type={AppType.Embedded}
-      shopifyApiKey={gadgetConfig.apiKeys.shopify ?? ""}
-      api={api}
-      location={location}
-      shopifyInstallState={gadgetConfig.shopifyInstallState}
-    >
-      <AppBridgeNavigate />
+    <SessionProvider>
       <Outlet />
-    </GadgetProvider>
+    </SessionProvider>
+  );
+}
+
+function EmbeddedNotice() {
+  return (
+    <main className="page narrow">
+      <h1>Domaine Shop Gateway is installed</h1>
+      <p>Manage stores, members and the Claude Code connection on the gateway admin page.</p>
+      <p>
+        <a className="button" href="/" target="_blank" rel="noopener">
+          Open the gateway admin
+        </a>
+      </p>
+    </main>
   );
 }
 
 export function HydrateFallback() {
-  return <FullPageSpinner />;
+  return <p className="page muted">Loading…</p>;
 }
 
-// Default Gadget error boundary component
-// This can be replaced with your own custom error boundary implementation
-// For more info, checkout https://reactrouter.com/how-to/error-boundary#1-add-a-root-error-boundary
 export const ErrorBoundary = process.env.NODE_ENV === "production" ? ProductionErrorBoundary : DevelopmentErrorBoundary;

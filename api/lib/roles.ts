@@ -11,6 +11,7 @@ export interface GatewayShop {
   myshopifyDomain: string;
   env: StoreEnv;
   enabled: boolean;
+  installedAt: Date;
 }
 
 export interface StoreGrant {
@@ -26,6 +27,7 @@ const SHOP_SELECT = {
   enabled: true,
   planName: true,
   planDisplayName: true,
+  createdAt: true,
 } as const;
 const PAGE = 250;
 
@@ -71,11 +73,13 @@ async function withGatewayFields(
     enabled: boolean | null;
     planName: string | null;
     planDisplayName: string | null;
+    createdAt: Date;
   }
 ): Promise<GatewayShop> {
   const myshopifyDomain = record.myshopifyDomain ?? "";
+  const installedAt = record.createdAt;
   if (record.env && record.alias) {
-    return { id: record.id, alias: record.alias, myshopifyDomain, env: record.env, enabled: record.enabled ?? false };
+    return { id: record.id, alias: record.alias, myshopifyDomain, env: record.env, enabled: record.enabled ?? false, installedAt };
   }
   const defaults = gatewayDefaults(record);
   const fields = {
@@ -84,7 +88,7 @@ async function withGatewayFields(
     alias: record.alias ?? defaults.alias ?? record.id,
   };
   await api.internal.shopifyShop.update(record.id, fields);
-  return { id: record.id, myshopifyDomain, ...fields };
+  return { id: record.id, myshopifyDomain, installedAt, ...fields };
 }
 
 async function accessRolesByShop(api: Api, user: GatewayUser): Promise<Map<string, StoreRole>> {
