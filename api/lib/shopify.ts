@@ -1,7 +1,7 @@
 import type { connections } from "gadget-server";
 import { resultCapChars, shopifyApiVersion, shopifyTimeoutMs, truncatedPreviewChars } from "./config";
 
-type ShopifyConnection = typeof connections.shopify;
+export type ShopifyConnection = typeof connections.shopify;
 
 export interface AdminGraphqlRequest {
   query: string;
@@ -29,14 +29,15 @@ class ShopifyCallFailed extends Error {}
 export async function runAdminGraphql(
   shopify: ShopifyConnection,
   shop: { id: string; myshopifyDomain: string },
-  request: AdminGraphqlRequest
+  request: AdminGraphqlRequest,
+  timeoutMs = shopifyTimeoutMs
 ): Promise<AdminGraphqlResult> {
   try {
     let token = await accessToken(shopify, shop.id);
-    let response = await post(shop.myshopifyDomain, token, request);
+    let response = await post(shop.myshopifyDomain, token, request, timeoutMs);
     if (response.status === 401) {
       token = await accessToken(shopify, shop.id, token);
-      response = await post(shop.myshopifyDomain, token, request);
+      response = await post(shop.myshopifyDomain, token, request, timeoutMs);
     }
 
     const { status } = response;
@@ -61,17 +62,17 @@ async function accessToken(shopify: ShopifyConnection, shopId: string, rejectedT
   }
 }
 
-async function post(domain: string, token: string, request: AdminGraphqlRequest): Promise<Response> {
+async function post(domain: string, token: string, request: AdminGraphqlRequest, timeoutMs: number): Promise<Response> {
   try {
     return await fetch(`https://${domain}/admin/api/${shopifyApiVersion}/graphql.json`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": token },
       body: JSON.stringify({ query: request.query, variables: request.variables ?? {} }),
-      signal: AbortSignal.timeout(shopifyTimeoutMs),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
     const timedOut = error instanceof Error && error.name === "TimeoutError";
-    throw new ShopifyCallFailed(timedOut ? `Shopify did not answer within ${shopifyTimeoutMs / 1000} s, retry` : UNAVAILABLE);
+    throw new ShopifyCallFailed(timedOut ? `Shopify did not answer within ${timeoutMs / 1000} s, retry` : UNAVAILABLE);
   }
 }
 
@@ -85,10 +86,11 @@ export function queryCost(body: AdminGraphqlBody): QueryCost | null {
 }
 
 /** Tool result text for a Shopify body; over the cap, a truncation notice with a short `data` preview instead of cut JSON. */
-export function formatResult(body: AdminGraphqlBody): string {
-  const text = JSON.stringify({ data: body.data ?? null, errors: body.errors, cost: body.extensions?.cost });
+export function formatResult(body: AdminGraphqlBody, extras: Record<string, unknown> = {}): string {
+  const text = JSON.stringify({ data: body.data ?? null, errors: body.errors, cost: body.extensions?.cost, ...extras });
   if (text.length <= resultCapChars) return text;
   return JSON.stringify({
+    ...extras,
     truncated: true,
     bytes: Buffer.byteLength(text),
     hint: "narrow the query: fewer fields, smaller first:, or filter",

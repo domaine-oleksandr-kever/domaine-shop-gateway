@@ -3,9 +3,12 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { api as gadgetApi, connections as gadgetConnections, logger as gadgetLogger } from "gadget-server";
 import { z } from "zod";
 import type { Principal } from "./auth";
+import { validateEnabled } from "./config";
 import { resolveUser, type GatewayUser, type Resolution } from "./identity";
 import { checkVariables, evaluateQuery } from "./policy";
-import { findGrant, storeGrants, type GatewayShop } from "./roles";
+import { invalidDocument, preflight, resultExtras } from "./preflight";
+import { findGrant, storeGrants, type GatewayShop, type StoreGrant } from "./roles";
+import { adminSchema } from "./schema";
 import { formatResult, queryCost, runAdminGraphql, type QueryCost } from "./shopify";
 
 export interface McpContext {
@@ -24,10 +27,11 @@ const INSTRUCTIONS = `Domaine Shop Gateway: Shopify Admin GraphQL API 2026-10 on
 - Use 2026-10 shapes: \`productUpdate(product: {...})\` (not \`input:\`), \`metafieldsSet(metafields: [{ownerId, namespace, key, type, value}])\`.
 - Prefer narrow queries: few fields, \`first:\` <= 10 (metafields 50), filter with \`query:\`, read \`pageInfo\`. Large results come back truncated with a hint.
 - An \`ACCESS_DENIED\` error means the app lacks a Shopify scope for that field, not that your role is too low.
-- A refusal names the rule that refused; do not retry the same document. Show a mutation to the user before running it.`;
+- A refusal names the rule that refused; do not retry the same document.
+- Validate a mutation with \`validate\`, show it to the user, then run it with \`query\` in a later turn.`;
 
 export function createMcpServer(context: McpContext): McpServer {
-  const server = new McpServer({ name: "domaine-shop-gateway", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: "domaine-shop-gateway", version: "0.3.0" }, { instructions: INSTRUCTIONS });
   let resolution: Promise<Resolution> | undefined;
   const resolve = () => (resolution ??= resolveUser(context.principal, context.bearer, context.api, context.logger));
 
@@ -67,7 +71,7 @@ export function createMcpServer(context: McpContext): McpServer {
   server.registerTool(
     "use_store",
     {
-      description: "Make a store (by alias) your current store for later `query` calls.",
+      description: "Make a store (by alias) your current store for later `query` and `validate` calls.",
       inputSchema: { alias: z.string().describe("Store alias from `stores`") },
     },
     async ({ alias }) => {
@@ -83,7 +87,7 @@ export function createMcpServer(context: McpContext): McpServer {
   server.registerTool(
     "query",
     {
-      description: "Run one Admin GraphQL (2026-10) operation on a store. Returns {data, errors, cost} as JSON text.",
+      description: "Run one Admin GraphQL (2026-10) operation on a store; it is schema-checked first and an invalid document is refused unsent. Returns {data, errors, cost, validated?, warnings?} as JSON text.",
       inputSchema: {
         query: z.string().describe("One GraphQL query or mutation document"),
         variables: z.unknown().optional().describe("Variables as a JSON object"),
@@ -93,8 +97,26 @@ export function createMcpServer(context: McpContext): McpServer {
     async (input) => runQuery(context, resolve, input)
   );
 
+  server.registerTool(
+    "validate",
+    {
+      description:
+        "Check one Admin GraphQL (2026-10) operation against the store's policy and the Admin schema without running it. Returns {valid, validated, policy, operationType, operationName, errors, warnings} as JSON text; `valid` is true only when the policy allows and the schema check ran (`validated`) with no errors.",
+      inputSchema: {
+        query: z.string().describe("One GraphQL query or mutation document"),
+        variables: z.unknown().optional().describe("Variables as a JSON object"),
+        store: z.string().optional().describe("Store alias; defaults to the current store"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async (input) => runValidate(context, resolve, input)
+  );
+
   return server;
 }
+
+type Tool = "query" | "validate";
+type ToolInput = { query: string; variables?: unknown; store?: string };
 
 interface AuditEntry {
   shop?: GatewayShop;
@@ -105,51 +127,112 @@ interface AuditEntry {
   cost?: QueryCost | null;
 }
 
-async function runQuery(
+type Audit = (entry: AuditEntry) => Promise<void>;
+type Refuse = (reason: string, entry?: Omit<AuditEntry, "allowed" | "reason">) => Promise<CallToolResult>;
+
+/** The checks `query` and `validate` share: identity, variables shape, store and grant. */
+async function openCall(
   context: McpContext,
   resolve: () => Promise<Resolution>,
-  input: { query: string; variables?: unknown; store?: string }
-): Promise<CallToolResult> {
+  tool: Tool,
+  input: ToolInput
+): Promise<{ done: CallToolResult } | { grant: StoreGrant; variables?: Record<string, unknown>; audit: Audit; refuse: Refuse }> {
   const started = Date.now();
   const { user, rejected } = await resolve();
-  const audit = (entry: AuditEntry) => writeAudit(context, user, started, entry);
-  const refuse = async (reason: string, entry: Omit<AuditEntry, "allowed" | "reason"> = {}) => {
+  const audit: Audit = (entry) => writeAudit(context, user, tool, started, entry);
+  const refuse: Refuse = async (reason, entry = {}) => {
     await audit({ ...entry, allowed: false, reason });
     return refusal(reason);
   };
 
-  if (rejected) return refuse(rejected);
+  if (rejected) return { done: await refuse(rejected) };
   const variablesProblem = checkVariables(input.variables);
-  if (variablesProblem) return refuse(variablesProblem);
+  if (variablesProblem) return { done: await refuse(variablesProblem) };
 
   const currentShopId = input.store ? undefined : await currentShop(context, user);
-  if (!input.store && !currentShopId) return refuse("call use_store first or pass store");
+  if (!input.store && !currentShopId) return { done: await refuse("call use_store first or pass store") };
   const grant = findGrant(await storeGrants(context.api, user), { alias: input.store, shopId: currentShopId });
   if (!grant) {
-    return refuse(input.store ? `unknown store or no role: ${input.store}` : "current store is no longer available, call use_store");
+    return {
+      done: await refuse(
+        input.store ? `unknown store or no role: ${input.store}` : "current store is no longer available, call use_store"
+      ),
+    };
   }
-  if (!grant.shop.enabled) return refuse("store disabled", { shop: grant.shop });
+  if (!grant.shop.enabled) return { done: await refuse("store disabled", { shop: grant.shop }) };
+
+  const variables = (input.variables ?? undefined) as Record<string, unknown> | undefined;
+  return { grant, variables, audit, refuse };
+}
+
+async function schemaCheck(context: McpContext, grant: StoreGrant, source: string, variables?: Record<string, unknown>) {
+  const schema = validateEnabled ? await adminSchema(context.connections.shopify, grant.shop, context.logger) : null;
+  return preflight(schema, source, variables);
+}
+
+async function runQuery(context: McpContext, resolve: () => Promise<Resolution>, input: ToolInput): Promise<CallToolResult> {
+  const call = await openCall(context, resolve, "query", input);
+  if ("done" in call) return call.done;
+  const { grant, variables, audit, refuse } = call;
 
   const decision = evaluateQuery(input.query, grant.role, grant.shop.env);
   const operation = { shop: grant.shop, operationType: decision.operationType, operationName: decision.operationName };
   if (!decision.allowed) return refuse(decision.reason, operation);
 
-  const variables = (input.variables ?? undefined) as Record<string, unknown> | undefined;
+  const checked = await schemaCheck(context, grant, input.query, variables);
+  if (checked.errors.length) {
+    await audit({ ...operation, allowed: false, reason: "invalid" });
+    return refusal(invalidDocument(checked.errors));
+  }
+
   const result = await runAdminGraphql(context.connections.shopify, grant.shop, { query: decision.query, variables });
   if (!result.ok) {
     await audit({ ...operation, allowed: true, reason: result.message });
     return refusal(result.message);
   }
   await audit({ ...operation, allowed: true, cost: queryCost(result.body) });
-  return { content: [{ type: "text", text: formatResult(result.body) }] };
+  return { content: [{ type: "text", text: formatResult(result.body, resultExtras(checked)) }] };
 }
 
-async function writeAudit(context: McpContext, user: GatewayUser, started: number, entry: AuditEntry): Promise<void> {
+async function runValidate(context: McpContext, resolve: () => Promise<Resolution>, input: ToolInput): Promise<CallToolResult> {
+  const call = await openCall(context, resolve, "validate", input);
+  if ("done" in call) return call.done;
+  const { grant, variables, audit } = call;
+
+  const decision = evaluateQuery(input.query, grant.role, grant.shop.env);
+  const operation = { shop: grant.shop, operationType: decision.operationType, operationName: decision.operationName };
+  const policy = { allowed: decision.allowed, reason: decision.allowed ? null : decision.reason };
+  const checked = decision.allowed
+    ? await schemaCheck(context, grant, input.query, variables)
+    : { validated: false, errors: [], warnings: [] };
+  const sendable = decision.allowed && checked.errors.length === 0;
+  const valid = sendable && checked.validated;
+
+  // `allowed` matches what `query` would audit for the same document: would it be sent.
+  await audit({ ...operation, allowed: sendable, reason: policy.reason ?? (sendable ? null : "invalid") });
+  return text({
+    valid,
+    validated: checked.validated,
+    policy,
+    operationType: decision.operationType,
+    operationName: decision.operationName,
+    errors: checked.errors,
+    warnings: checked.warnings,
+  });
+}
+
+async function writeAudit(
+  context: McpContext,
+  user: GatewayUser,
+  tool: Tool,
+  started: number,
+  entry: AuditEntry
+): Promise<void> {
   try {
     await context.api.audit.create({
       user: { _link: user.id },
       shop: entry.shop ? { _link: entry.shop.id } : undefined,
-      tool: "query",
+      tool,
       operationType: entry.operationType ?? "unknown",
       operationName: entry.operationName ?? null,
       allowed: entry.allowed,

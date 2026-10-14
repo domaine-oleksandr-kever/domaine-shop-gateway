@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated 2026-10-12 (install probe and admin API timeouts; admin page sign-in shared by tabs). Update this file in the same change that
+Last updated 2026-10-14 (pre-send schema validation and the `validate` tool). Update this file in the same change that
 alters a flow, a model or a trust boundary.
 
 ## Components
@@ -24,6 +24,8 @@ alters a flow, a model or a trust boundary.
 - **Gadget** hosts the code, the Postgres database behind the models, the Shopify
   connection (install flow, token storage, webhooks `shop/update`, `app/uninstalled`) and
   the React Router frontend.
+- **Pre-send check** between policy and `shopify.ts`: `preflight.ts` validates an allowed
+  document with `graphql-validate.ts` against the Admin schema cached by `schema.ts`.
 - **Shopify** sees only one app per environment. The app has no UI of its own; the embedded
   admin view shows a link to the gateway.
 
@@ -43,11 +45,41 @@ alters a flow, a model or a trust boundary.
    parse → exactly one operation → no subscription → `query` without introspection, or
    `mutation` only if `env=dev`, role ∈ {dev, store-admin} and every root field is in the
    allow-list → forward `{ query: print(ast), variables }` only.
+4a. **Pre-send validation** (`preflight.ts`), unless `GATEWAY_VALIDATE=0`. `schema.ts` returns
+   the Admin schema built with `buildClientSchema`, cached at module level (one per instance)
+   keyed by the API version, 24 h TTL. A miss runs the gateway's own introspection
+   (`getIntrospectionQuery({ descriptions: false, inputValueDeprecation: true })`, so deprecated
+   arguments and input fields stay in the schema; the calling store's token, 10 s timeout)
+   through `runAdminGraphql`, not through the client policy; concurrent misses share one load,
+   the JSON is dropped after the build, and each load logs one line (`admin schema loaded`:
+   `version`, `types`, `fetchMs`, `buildMs`, `rssMb`). A failed load logs `admin schema
+   unavailable`; the previous schema, if any, stays in use, and that store's token is not used
+   for another load for 5 min (other stores may still load, so one revoked token does not
+   switch validation off for everyone). `graphql-validate.ts` then runs graphql-js
+   `validate` (specified rules) on the client's own text, re-parsed so line:column match what
+   was sent, plus `getVariableValues` for the variables. Errors → refusal
+   `invalid document: <up to 3 problems with line:column>`, audit reason `invalid`, nothing
+   sent. `NoDeprecatedCustomRule` hits ride along as `warnings` in the result. **Fail-open**:
+   no schema → the document is sent unchecked and the result carries `validated: false`
+   (Shopify rejects an invalid document itself, so the check saves a round trip, it is not a
+   safety gate).
 5. `shopify.ts` gets the store token from `connections.shopify.getAccessToken({ shopId })`
    and POSTs to `https://<shop>/admin/api/2026-10/graphql.json` with a 25 s timeout. One
    retry with a fresh token on 401. The response `{ data, errors, extensions.cost }` is
    returned as text, capped at 45,000 characters (`{ truncated, bytes, hint, preview }`).
 6. An `audit` row is written for every call, allowed or refused, before the result returns.
+
+## Request flow: a `validate` tool call
+
+Steps 1–4 as for `query` (same identity, variables, store and policy checks); when the policy
+allows, the 4a schema check runs and its errors and warnings go into the answer instead of a
+refusal; a policy refusal skips the schema check (`validated: false`) and comes back inside the
+JSON, not as a tool error. The answer is
+`{ valid, validated, policy: { allowed, reason }, operationType, operationName, errors, warnings }`
+as JSON text; `valid` is true only when the policy allows and the schema check ran with no
+errors. Nothing is sent to Shopify. Audited with `tool: "validate"`; `allowed` is what `query`
+would audit for the same document (policy allows and no schema errors), reason `invalid` on
+schema errors.
 
 ## Request flow: the admin page
 
@@ -108,7 +140,7 @@ alters a flow, a model or a trust boundary.
 | `invite` | `email`, `shop`, `role`, `invitedBy` | unique per (email, shop); redeemed on first sign-in |
 | `pref` | `user` (unique), `currentShop` | the `use_store` selection |
 | `pendingInstall` | `user`, `shopDomain` (unique), `expiresAt` | 15-minute reservation |
-| `audit` | `user?`, `shop?`, `tool`, `operationType`, `operationName`, `allowed`, `reason`, `durationMs`, `cost` | never query text, variables or responses |
+| `audit` | `user?`, `shop?`, `tool` (query/validate/admin), `operationType`, `operationName`, `allowed`, `reason`, `durationMs`, `cost` | never query text, variables or responses |
 | `shopifyShop` | Gadget's shop fields + `alias` (unique), `env` dev/prod, `enabled` | token held by Gadget's connection |
 
 ## Trust boundaries
@@ -121,7 +153,10 @@ alters a flow, a model or a trust boundary.
   `shopify.ts`; nothing secret is in git (`shopify.app.*.toml`, `.gadget/` are ignored).
 - **Policy is an allow-list** on the parsed AST, not a regex deny-list; batches, extra
   operations, `operationName`/`extensions` from the client and non-object variables are
-  refused before any Shopify call.
+  refused before any Shopify call. The gateway's own schema introspection bypasses that policy
+  (it is not a client document); the introspection JSON stays in `schema.ts`, and clients'
+  introspection is still refused. Validation messages may name schema types and fields (public
+  in Shopify's docs), so `validate` is not an introspection bypass of anything secret.
 - **Prod is read-only by construction.** The mutation branch requires `env === "dev"`.
 - **Logging.** Only reason categories (expired, claim, signature, …) and claim names are
   logged, never values.
@@ -140,4 +175,8 @@ alters a flow, a model or a trust boundary.
 
 See README → TODO / roadmap. In short: sign-in of the admin page not yet verified in a
 browser; dev environment pauses; 250-row pages; no rate limiting; tokens in
-`localStorage`; App Bridge removed from the embedded admin view.
+`localStorage`; App Bridge removed from the embedded admin view; the Admin schema cache is per
+instance, so the first `query`/`validate` after a cold start pays one introspection load
+(upgrade path: a `scheduler` action that warms the cache, or the introspection JSON persisted
+in a model); no pre-send "required scopes" hint, because standard introspection carries no
+scope data.

@@ -5,7 +5,7 @@ from Claude Code or claude.ai, with a role per store and production stores read-
 keeps Shopify tokens on a laptop, nobody logs into the Shopify CLI, and the rules live on the
 server.
 
-Status (2026-10-12): working prototype, deployed to the Gadget **production** environment, with three
+Status (2026-10-14): working prototype, deployed to the Gadget **production** environment, with three
 dev stores. See [TODO / roadmap](#todo--roadmap) for what is still open and
 [ARCHITECTURE.md](ARCHITECTURE.md) for the internals.
 
@@ -16,7 +16,7 @@ dev stores. See [TODO / roadmap](#todo--roadmap) for what is still open and
 | Gateway app | Gadget, app `domaine-shop-gateway` | Hosts the MCP endpoint `/mcp`, the admin page `/`, the store registry, roles, the GraphQL policy and the audit log |
 | Shopify app | Dev Dashboard org "Domaine (North America)", apps `domaine-shop-gateway-dev` (development env) and `domaine-shop-gateway` (production env) | The key. Installing it on a store gives the gateway an offline Admin API token for that store. Shopify runs nothing else |
 | Identity provider | WorkOS AuthKit, workspace `kever-sandbox`, environment Staging, domain `meaningful-pink-49-staging.authkit.app` | Google sign-in, OAuth 2.1 server for MCP clients and for the admin page |
-| Clients | Claude Code (`claude mcp add`), claude.ai custom connector (same URL), Claude desktop through the connector | Call `stores`, `use_store`, `query`, `whoami` |
+| Clients | Claude Code (`claude mcp add`), claude.ai custom connector (same URL), Claude desktop through the connector | Call `stores`, `use_store`, `query`, `validate`, `whoami` |
 
 Production URL: `https://domaine-shop-gateway.gadget.app` (deployed 2026-10-12);
 development URL (pauses when idle): `https://domaine-shop-gateway--development.gadget.app`.
@@ -64,7 +64,11 @@ There are two logins with one identity.
   `metafieldDefinitionCreate`, `metaobjectCreate`, `metaobjectUpdate`, `publishablePublish`,
   `publishableUnpublish`. Everything else, introspection, subscriptions, batches and
   multi-operation documents are refused with the rule's name.
-- Every `query` call and every admin change writes an `audit` row (who, store, operation
+- An allowed document is then checked against the live Admin schema before it is sent: an
+  unknown field, a wrong argument or a bad variable is refused as `invalid document:` with
+  line:column, deprecated fields come back as `warnings`. When the schema cannot be loaded the
+  call goes through unchecked and the result says `validated: false`.
+- Every `query` and `validate` call and every admin change writes an `audit` row (who, store, operation
   name, allowed, reason, duration, query cost). Query text, variables and responses are never
   stored or logged.
 
@@ -77,7 +81,9 @@ claude mcp add --transport http --scope user domaine-shop-gateway https://domain
 Then in Claude Code run `/mcp`, choose `domaine-shop-gateway`, authenticate (browser, Google).
 Ask things like "which stores can I use", "on kever-b2b, why does the engraving metafield
 not show on Signet Ring". Tools: `whoami`, `stores`, `use_store(alias)`,
-`query(query, variables?, store?)`.
+`query(query, variables?, store?)` (schema-checked before it is sent),
+`validate(query, variables?, store?)` (policy + schema check, never sent; use it on a mutation
+before running it).
 
 ## Use it from claude.ai (connector)
 
@@ -118,6 +124,7 @@ the Dev Dashboard; the claim still works by store domain.
 | `GATEWAY_ADMIN_SUBS` | the owner's WorkOS `sub` | Comma list of WorkOS user ids that are global admins |
 | `WORKOS_ISSUER` | the staging AuthKit domain | AuthKit domain; change when moving to a WorkOS production environment |
 | `GATEWAY_BASE_URL` | derived from `GADGET_APP`/`GADGET_ENV`, else the dev URL | Public base URL used in metadata and the MCP resource |
+| `GATEWAY_VALIDATE` | on | `0` skips the pre-send schema check; `query` and `validate` answer `validated: false` |
 
 No secrets are needed: JWT verification uses AuthKit's public JWKS and the Shopify token comes
 from Gadget's connection.
@@ -126,7 +133,7 @@ from Gadget's connection.
 
 ```
 yarn install            # once
-yarn test               # vitest: policy, validation, members, installs
+yarn test               # vitest: policy, admin input validation, members, installs, schema, graphql-validate, preflight, mcp
 npx tsc -p tsconfig.api.json --noEmit
 npx -y ggt@latest push  # upload to the development environment
 npx -y ggt@latest status / logs / var list
@@ -187,6 +194,12 @@ Ordered by what the demo and the first users need.
 4a. ~~Install diagnostics~~ DONE 2026-10-12: each `/gw/installs` call logs one `install request` line
    (`outcome`, `probe`, `durationMs`); read it with `npx -y ggt@latest logs --env production`
    when an "Add store" report comes in.
+4b. ~~Pre-send validation~~ DONE 2026-10-14 on production: live introspection of the Admin schema +
+   graphql-js in the gateway, `validate` tool, `GATEWAY_VALIDATE=0` to switch off; first load on
+   production: 3,716 types, fetch 1.5 s, build 61 ms, process RSS 264 MB after it. No "required
+   scopes" hint (standard introspection carries none; Shopify names the field on `ACCESS_DENIED`).
+   Ceiling: the schema cache is per instance, so the first call after a cold start pays one
+   load; upgrade path: a `scheduler` action that warms it, or the introspection JSON in a model.
 5. **Audit page polish**: request id per call, document hash, pagination beyond 250 rows,
    daily re-check of `env` against the Shopify plan.
 6. **Hardening**: rate limit per user, `Origin` check on `/gw/*`, 409 on alias races,
@@ -200,8 +213,10 @@ Ordered by what the demo and the first users need.
    secondary app needed for paid stores (custom distribution = one store/org per app).
 9. **Staff mode** (per-user 24 h online tokens that mirror Shopify staff permissions) for
    stores where Domaine must not hold an offline token.
-10. **base plugin**: ship the GraphQL recipes skill and the server entry so every team gets
-    the gateway without `claude mcp add`; Slack bot as a second client.
+10. **base plugin**: the GraphQL recipes skill shipped in base 0.10.0 (`/base:shopify`); it
+    validates through any validator in the session, this gateway's `validate` included. Still
+    open: the server entry so every team gets the gateway without `claude mcp add`; Slack bot as
+    a second client.
 11. **Exit plan**: the Rust/Fly.io design in the owner's plan if Gadget's limits (Hobby: 0.5 GB,
     1-day logs, 500 req/10 s) or policy stop fitting.
 
@@ -209,7 +224,8 @@ Ordered by what the demo and the first users need.
 
 ```
 api/lib/        auth (JWT), identity (userinfo, invites), roles, policy (+tests), shopify (Admin API call),
-                mcp (tools), gw (admin route wrapper), members, installs, validate, audit, config
+                schema (Admin schema cache), graphql-validate, preflight (pre-send check),
+                mcp (tools), gw (admin route wrapper), members, installs, validate (admin input), audit, config
 api/routes/     POST-mcp (MCP endpoint), GET-oauth-protected-resource, .well-known/*, gw/* (admin JSON API)
 api/models/     user, access, pref, audit, invite, pendingInstall, shopifyShop (+alias/env/enabled)
 web/            React Router v7 admin page: sign-in (PKCE), dashboard, store page

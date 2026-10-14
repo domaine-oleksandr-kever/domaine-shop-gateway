@@ -52,6 +52,8 @@ export function isEmailAllowed(email: string): boolean {
 
 export const shopifyApiVersion = "2026-10";
 export const shopifyTimeoutMs = 25_000;
+/** `GATEWAY_VALIDATE=0` skips the pre-send schema check. */
+export const validateEnabled = process.env.GATEWAY_VALIDATE !== "0";
 /** Largest tool result, in characters, returned inline; Claude Code spills text results over 50,000 to a file. */
 export const resultCapChars = 45_000;
 export const truncatedPreviewChars = 2_000;
