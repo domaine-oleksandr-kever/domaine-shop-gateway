@@ -1,8 +1,8 @@
 {
   "name": "domaine-shop-gateway",
   "version": "0.1.0",
-  "description": "Internal package for Gadget app domaine-shop-gateway (Development environment)",
-  "license": "UNLICENSED",
+  "description": "MCP gateway to Shopify Admin GraphQL on Domaine stores, with a role per store",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "build": "NODE_ENV=production react-router build",

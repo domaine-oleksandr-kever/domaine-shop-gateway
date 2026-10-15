@@ -3,10 +3,10 @@ import { isValidAlias, normalizeMemberEmail, normalizeShopDomain, parseStoreRole
 
 describe("normalizeShopDomain", () => {
   it.each([
-    ["kever-b2b", "kever-b2b.myshopify.com"],
-    ["  Kever-B2B.myshopify.com ", "kever-b2b.myshopify.com"],
-    ["https://kever-b2b.myshopify.com/admin/products", "kever-b2b.myshopify.com"],
-    ["https://admin.shopify.com/store/kever-b2b/apps", "kever-b2b.myshopify.com"],
+    ["acme-b2b", "acme-b2b.myshopify.com"],
+    ["  Acme-B2B.myshopify.com ", "acme-b2b.myshopify.com"],
+    ["https://acme-b2b.myshopify.com/admin/products", "acme-b2b.myshopify.com"],
+    ["https://admin.shopify.com/store/acme-b2b/apps", "acme-b2b.myshopify.com"],
   ])("normalizes %s", (input, expected) => {
     expect(normalizeShopDomain(input)).toBe(expected);
   });
@@ -21,7 +21,7 @@ describe("normalizeShopDomain", () => {
 
 describe("isValidAlias", () => {
   it("accepts lower-case letters, digits and dashes, 2 to 40 long", () => {
-    expect(isValidAlias("kever-b2b")).toBe(true);
+    expect(isValidAlias("acme-b2b")).toBe(true);
     expect(isValidAlias("a".repeat(40))).toBe(true);
   });
 

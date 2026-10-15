@@ -2,8 +2,8 @@
 
 Run these `query` tool calls through the gateway once per store, as a user with role `dev` or
 `store-admin` (the bootstrap admin qualifies). Every operation was checked against the Admin API
-2026-10 schema. Do the steps in order on `kever-oleksandr-dev-store`, then repeat with
-`"store": "kever-b2b"`.
+2026-10 schema. Do the steps in order on `acme-dev-store`, then repeat with
+`"store": "acme-b2b"`.
 
 Result on each store: definition `custom.engraving` on products; "Signet Ring" with engraving
 "Forever"; "Plain Band" without it; "Hidden Pendant" active but not published to the Online
@@ -13,7 +13,7 @@ Store. All three carry the tag `gateway-demo`.
 
 ```json
 {
-  "store": "kever-oleksandr-dev-store",
+  "store": "acme-dev-store",
   "query": "mutation CreateEngravingDefinition($definition: MetafieldDefinitionInput!) { metafieldDefinitionCreate(definition: $definition) { createdDefinition { id namespace key type { name } } userErrors { field message code } } }",
   "variables": {
     "definition": {
@@ -35,7 +35,7 @@ Run once per product; note each returned `product.id`.
 
 ```json
 {
-  "store": "kever-oleksandr-dev-store",
+  "store": "acme-dev-store",
   "query": "mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status } userErrors { field message } } }",
   "variables": { "product": { "title": "Signet Ring", "status": "ACTIVE", "tags": ["gateway-demo"] } }
 }
@@ -43,7 +43,7 @@ Run once per product; note each returned `product.id`.
 
 ```json
 {
-  "store": "kever-oleksandr-dev-store",
+  "store": "acme-dev-store",
   "query": "mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status } userErrors { field message } } }",
   "variables": { "product": { "title": "Plain Band", "status": "ACTIVE", "tags": ["gateway-demo"] } }
 }
@@ -51,7 +51,7 @@ Run once per product; note each returned `product.id`.
 
 ```json
 {
-  "store": "kever-oleksandr-dev-store",
+  "store": "acme-dev-store",
   "query": "mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { id title handle status } userErrors { field message } } }",
   "variables": { "product": { "title": "Hidden Pendant", "status": "ACTIVE", "tags": ["gateway-demo"] } }
 }
@@ -65,7 +65,7 @@ Replace `<SIGNET_RING_ID>` with the id from step 2.
 
 ```json
 {
-  "store": "kever-oleksandr-dev-store",
+  "store": "acme-dev-store",
   "query": "mutation SetEngraving($metafields: [MetafieldsSetInput!]!) { metafieldsSet(metafields: $metafields) { metafields { id namespace key type value } userErrors { field message code } } }",
   "variables": {
     "metafields": [
@@ -87,7 +87,7 @@ Find the Online Store publication id:
 
 ```json
 {
-  "store": "kever-oleksandr-dev-store",
+  "store": "acme-dev-store",
   "query": "query Publications { publications(first: 10) { nodes { id catalog { title } } } }"
 }
 ```
@@ -96,7 +96,7 @@ Then publish each of the two products (not Hidden Pendant):
 
 ```json
 {
-  "store": "kever-oleksandr-dev-store",
+  "store": "acme-dev-store",
   "query": "mutation Publish($id: ID!, $input: [PublicationInput!]!) { publishablePublish(id: $id, input: $input) { publishable { ... on Product { id title } } userErrors { field message } } }",
   "variables": { "id": "<PRODUCT_ID>", "input": [{ "publicationId": "<ONLINE_STORE_PUBLICATION_ID>" }] }
 }
@@ -110,7 +110,7 @@ publish the two products from the Shopify admin.
 
 ```json
 {
-  "store": "kever-oleksandr-dev-store",
+  "store": "acme-dev-store",
   "query": "query EngravingProducts { products(first: 10, query: \"tag:gateway-demo\") { nodes { id title handle status onlineStoreUrl engraving: metafield(namespace: \"custom\", key: \"engraving\") { type value } } pageInfo { hasNextPage endCursor } } }"
 }
 ```

@@ -6,9 +6,9 @@ const answering = (status: number) => vi.fn(async () => new Response(null, { sta
 describe("probeShop", () => {
   it("asks the storefront root without following redirects", async () => {
     const fetchImpl = answering(302);
-    await probeShop("elc-us-mc-dev.myshopify.com", fetchImpl);
+    await probeShop("example-dev.myshopify.com", fetchImpl);
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://elc-us-mc-dev.myshopify.com/",
+      "https://example-dev.myshopify.com/",
       expect.objectContaining({ method: "HEAD", redirect: "manual" })
     );
   });

@@ -43,7 +43,7 @@ export const allowedEmailDomains = listFromEnv("GATEWAY_ALLOWED_DOMAINS", "meetd
 );
 /** Individual addresses allowed in besides the domains (a personal account used for testing). */
 export const allowedEmails = listFromEnv("GATEWAY_ALLOWED_EMAILS", "").map((email) => email.toLowerCase());
-export const adminSubs = listFromEnv("GATEWAY_ADMIN_SUBS", "user_01M4QNZ01BPXAFGZE6AMABFP3A");
+export const adminSubs = listFromEnv("GATEWAY_ADMIN_SUBS", "");
 
 export function isEmailAllowed(email: string): boolean {
   const lower = email.toLowerCase();

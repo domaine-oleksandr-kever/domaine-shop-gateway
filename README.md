@@ -79,7 +79,7 @@ claude mcp add --transport http --scope user domaine-shop-gateway https://domain
 ```
 
 Then in Claude Code run `/mcp`, choose `domaine-shop-gateway`, authenticate (browser, Google).
-Ask things like "which stores can I use", "on kever-b2b, why does the engraving metafield
+Ask things like "which stores can I use", "on acme-b2b, why does the engraving metafield
 not show on Signet Ring". Tools: `whoami`, `stores`, `use_store(alias)`,
 `query(query, variables?, store?)` (schema-checked before it is sent),
 `validate(query, variables?, store?)` (policy + schema check, never sent; use it on a mutation
@@ -121,7 +121,7 @@ the Dev Dashboard; the claim still works by store domain.
 |---|---|---|
 | `GATEWAY_ALLOWED_DOMAINS` | `meetdomaine.com` | Comma list of email domains allowed to sign in |
 | `GATEWAY_ALLOWED_EMAILS` | empty | Comma list of individual addresses allowed besides the domains (e.g. a personal test account) |
-| `GATEWAY_ADMIN_SUBS` | the owner's WorkOS `sub` | Comma list of WorkOS user ids that are global admins |
+| `GATEWAY_ADMIN_SUBS` | empty | Comma list of WorkOS user ids that are global admins; set it before the first deploy or nobody can enable prod stores |
 | `WORKOS_ISSUER` | the staging AuthKit domain | AuthKit domain; change when moving to a WorkOS production environment |
 | `GATEWAY_BASE_URL` | derived from `GADGET_APP`/`GADGET_ENV`, else the dev URL | Public base URL used in metadata and the MCP resource |
 | `GATEWAY_VALIDATE` | on | `0` skips the pre-send schema check; `query` and `validate` answer `validated: false` |
@@ -172,8 +172,8 @@ Providers: Google enabled.
 
 `docs/demo-seed.md` holds the `query` tool calls that create the metafield definition
 `custom.engraving` and three products (Signet Ring with engraving "Forever", Plain Band,
-Hidden Pendant) on a dev store. Steps 1, 2, 3 and 5 ran on `kever-oleksandr-dev-store` and
-`kever-b2b`; step 4 (publish) needs `write_publications`, which the app does not request.
+Hidden Pendant) on a dev store. Steps 1, 2, 3 and 5 ran on `acme-dev-store` and
+`acme-b2b`; step 4 (publish) needs `write_publications`, which the app does not request.
 
 ## TODO / roadmap
 
