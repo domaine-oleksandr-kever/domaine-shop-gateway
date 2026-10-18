@@ -14,7 +14,7 @@ dev stores. See [TODO / roadmap](#todo--roadmap) for what is still open and
 | Part | Where | What it does |
 |---|---|---|
 | Gateway app | Gadget, app `domaine-shop-gateway` | Hosts the MCP endpoint `/mcp`, the admin page `/`, the store registry, roles, the GraphQL policy and the audit log |
-| Shopify app | Dev Dashboard org "Domaine (North America)", apps `domaine-shop-gateway-dev` (development env) and `domaine-shop-gateway` (production env) | The key. Installing it on a store gives the gateway an offline Admin API token for that store. Shopify runs nothing else. Production client stores install their own custom app, registered under "Shopify apps" |
+| Shopify app | Dev Dashboard org "Domaine (North America)", apps `domaine-shop-gateway-dev` (development env) and `domaine-shop-gateway` (production env) | The key. Installing it on a store gives the gateway an offline Admin API token for that store. Shopify runs nothing else. Production client stores install their own custom app, registered in step 4 of the "Production store" tab of Add store |
 | Identity provider | WorkOS AuthKit, workspace `kever-sandbox`, environment Staging, domain `meaningful-pink-49-staging.authkit.app` | Google sign-in, OAuth 2.1 server for MCP clients and for the admin page |
 | Clients | Claude Code (`claude mcp add`), claude.ai custom connector (same URL), Claude desktop through the connector | Call `stores`, `use_store`, `query`, `validate`, `whoami` |
 
@@ -130,7 +130,7 @@ install slots.
 3. Choose distribution **Custom** and enter the client's store or Plus organization. This
    choice is permanent.
 4. Add the app's client id and secret in Gadget: Settings → Plugins → Shopify.
-5. Register the app in the **Shopify apps** section.
+5. Register the app in the registry on the page (its step 4).
 6. Pick it, enter the store handle and click **Generate install link**.
 7. A person with "Manage apps" on the client store opens the link. The store arrives as
    `prod` and disabled until a global admin enables it; it is read-only.

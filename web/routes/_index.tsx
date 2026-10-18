@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { AddStoreForm } from "../components/AddStoreForm";
-import { AppsSection } from "../components/AppsSection";
 import { DisabledStores } from "../components/DisabledStores";
 import { PendingInstalls } from "../components/PendingInstalls";
 import { SignedIn } from "../components/SignedIn";
@@ -51,12 +50,6 @@ function Dashboard({ globalAdmin }: { globalAdmin: boolean }) {
         <section aria-labelledby="disabled-heading">
           <h2 id="disabled-heading">Pending and disabled stores</h2>
           <DisabledStores stores={stores} onChange={reload} />
-        </section>
-      )}
-      {globalAdmin && (
-        <section aria-labelledby="apps-heading">
-          <h2 id="apps-heading">Shopify apps</h2>
-          <AppsSection apps={apps} />
         </section>
       )}
     </>

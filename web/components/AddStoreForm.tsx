@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import { errorText, gwFetch } from "../lib/api";
 import { filterApps } from "../lib/apps";
 import { loadConfig } from "../lib/auth";
+import { AppsSection } from "./AppsSection";
 import type { GatewayConfig, InstallStart, ShopApp } from "../lib/types";
 import type { GwData } from "../lib/useGwData";
 
@@ -13,7 +14,7 @@ type StoreKind = "dev" | "prod";
  * Starts a store install. A development store installs the main app at once; a production store (global admins only)
  * needs its own client app, so that tab walks through creating one and builds an install link to hand over.
  * `onInstallChange` runs when an install was started, or when the page comes back from Shopify through history.
- * `apps` is the registry the Shopify apps section edits, so an app registered there shows in the picker at once.
+ * `apps` is the registry step 4 of that tab edits, so an app registered there shows in the picker at once.
  */
 export function AddStoreForm({
   globalAdmin,
@@ -86,7 +87,7 @@ export function AddStoreForm({
   };
 
   return (
-    <form className="stack" onSubmit={submit}>
+    <div className="stack">
       {globalAdmin && (
         <fieldset className="row">
           <legend>Store type</legend>
@@ -101,59 +102,61 @@ export function AddStoreForm({
         </fieldset>
       )}
       {prod && <ProductionSteps apps={apps} clientId={clientId} onClientIdChange={setClientId} />}
-      <label htmlFor={inputId}>Store handle or domain</label>
-      <div className="row">
-        <input
-          id={inputId}
-          name="shop"
-          required
-          autoComplete="off"
-          spellCheck={false}
-          placeholder="my-store or my-store.myshopify.com"
-          aria-describedby={hintId}
-          value={shop}
-          onChange={(event) => setShop(event.target.value)}
-        />
-        <button type="submit" className="button" disabled={busy}>
-          {opening ? "Opening Shopify…" : busy ? "Starting…" : prod ? "Generate install link" : "Install app"}
-        </button>
-      </div>
-      <p id={hintId} className="muted small">
-        {prod
-          ? "The link reserves the store for you for 15 minutes: if it is opened later, the store still arrives but nobody becomes its store-admin."
-          : "You need the Manage apps permission on the store and must approve the install within 15 minutes to become its store-admin. Shopify refuses a store that is not a development store on its own page."}
-      </p>
-      {error && (
-        <p className="error" role="alert">
-          {error}
+      <form className="stack" onSubmit={submit}>
+        <label htmlFor={inputId}>Store handle or domain</label>
+        <div className="row">
+          <input
+            id={inputId}
+            name="shop"
+            required
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="my-store or my-store.myshopify.com"
+            aria-describedby={hintId}
+            value={shop}
+            onChange={(event) => setShop(event.target.value)}
+          />
+          <button type="submit" className="button" disabled={busy}>
+            {opening ? "Opening Shopify…" : busy ? "Starting…" : prod ? "Generate install link" : "Install app"}
+          </button>
+        </div>
+        <p id={hintId} className="muted small">
+          {prod
+            ? "The link reserves the store for you for 15 minutes: if it is opened later, the store still arrives but nobody becomes its store-admin."
+            : "You need the Manage apps permission on the store and must approve the install within 15 minutes to become its store-admin. Shopify refuses a store that is not a development store on its own page."}
         </p>
-      )}
-      {opening && (
-        <p className="notice" role="status">
-          If Shopify does not open, use <a href={opening}>this link</a>.
-        </p>
-      )}
-      {link && (
-        <div className="notice stack" role="status">
-          <p>
-            Install link for {link.shop}. Send it to a person with Manage apps on the store, or{" "}
-            <a href={link.url} target="_blank" rel="noopener">
-              open it
-            </a>{" "}
-            yourself.
+        {error && (
+          <p className="error" role="alert">
+            {error}
           </p>
-          <CopyValue label="Install link" value={link.url} />
-        </div>
-      )}
-      {manual && (
-        <div className="notice" role="status">
-          <p>{manual.instructions}</p>
-          <a href={manual.devDashboardUrl} target="_blank" rel="noopener">
-            Open the Shopify Dev Dashboard
-          </a>
-        </div>
-      )}
-    </form>
+        )}
+        {opening && (
+          <p className="notice" role="status">
+            If Shopify does not open, use <a href={opening}>this link</a>.
+          </p>
+        )}
+        {link && (
+          <div className="notice stack" role="status">
+            <p>
+              Install link for {link.shop}. Send it to a person with Manage apps on the store, or{" "}
+              <a href={link.url} target="_blank" rel="noopener">
+                open it
+              </a>{" "}
+              yourself.
+            </p>
+            <CopyValue label="Install link" value={link.url} />
+          </div>
+        )}
+        {manual && (
+          <div className="notice" role="status">
+            <p>{manual.instructions}</p>
+            <a href={manual.devDashboardUrl} target="_blank" rel="noopener">
+              Open the Shopify Dev Dashboard
+            </a>
+          </div>
+        )}
+      </form>
+    </div>
   );
 }
 
@@ -209,7 +212,8 @@ function ProductionSteps({
         .
       </li>
       <li>
-        Register the app in the <a href="#apps-heading">Shopify apps</a> section below.
+        Register the app here:
+        <AppsSection apps={apps} />
       </li>
       <li>
         Pick it here and generate the install link:
@@ -236,21 +240,8 @@ function AppPicker({
   const selectId = useId();
   const [query, setQuery] = useState("");
 
-  if (error) {
-    return (
-      <p className="error" role="alert">
-        {error}
-      </p>
-    );
-  }
-  if (!apps) return <p className="muted">Loading apps…</p>;
-  if (apps.length === 0) {
-    return (
-      <p className="muted">
-        No app yet: register one in the <a href="#apps-heading">Shopify apps</a> section.
-      </p>
-    );
-  }
+  if (error || !apps) return null;
+  if (apps.length === 0) return <p className="muted">No app yet: register one in step 4.</p>;
 
   const shown = filterApps(apps, query);
   const search = (next: string) => {
@@ -274,7 +265,7 @@ function AppPicker({
       </span>
       <span className="field">
         <label htmlFor={selectId}>App</label>
-        <select id={selectId} required value={clientId} onChange={(event) => onChange(event.target.value)}>
+        <select id={selectId} value={clientId} onChange={(event) => onChange(event.target.value)}>
           <option value="">{shown.length ? "Choose an app" : "No app matches"}</option>
           {shown.map((app) => (
             <option key={app.id} value={app.clientId} disabled={!app.registeredInGadget}>
