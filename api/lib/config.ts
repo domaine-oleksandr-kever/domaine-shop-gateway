@@ -50,6 +50,32 @@ export function isEmailAllowed(email: string): boolean {
   return allowedEmails.includes(lower) || allowedEmailDomains.includes(lower.split("@").pop() ?? "");
 }
 
+/** Client id of the main (dev-store) Shopify app, used when an install names no app; must match `client_id` in shopify.app.toml (a test checks it). */
+export const defaultShopifyClientId = process.env.GATEWAY_DEFAULT_CLIENT_ID || "b73a7f59b61391d5901163e77050f8c8";
+/** What a client app in the Shopify Dev Dashboard needs so Gadget's Shopify connection handles its installs. */
+export const shopifyAppUrl = `${baseUrl}/api/shopify/install-or-render`;
+export const shopifyRedirectUrl = `${baseUrl}/api/connections/auth/shopify/callback`;
+/** Must match `[access_scopes]` in shopify.app.toml (a test checks it). */
+export const shopifyScopes = [
+  "read_products",
+  "write_products",
+  "read_metaobjects",
+  "write_metaobjects",
+  "unauthenticated_read_metaobjects",
+  "read_metaobject_definitions",
+  "write_metaobject_definitions",
+  "read_themes",
+  "read_publications",
+  "read_inventory",
+  "read_inventory_shipments",
+  "read_inventory_shipments_received_items",
+  "read_inventory_transfers",
+  "unauthenticated_read_product_inventory",
+  "read_locations",
+  "unauthenticated_read_product_pickup_locations",
+  "read_markets",
+  "read_markets_home",
+];
 export const shopifyApiVersion = "2026-10";
 export const shopifyTimeoutMs = 25_000;
 /** `GATEWAY_VALIDATE=0` skips the pre-send schema check. */

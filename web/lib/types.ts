@@ -8,6 +8,8 @@ export interface GatewayConfig {
   redirectUri: string;
   scopes: string[];
   mcpCommand: string;
+  /** What to enter for a client app in the Shopify Dev Dashboard. */
+  shopifyApp: { appUrl: string; oauthCallbackUrl: string; scopes: string[] };
 }
 
 export interface Me {
@@ -55,3 +57,21 @@ export interface AuditRow {
 export type InstallStart =
   | { shop: string; installUrl: string }
   | { shop: string; manual: true; devDashboardUrl: string; instructions: string };
+
+export interface PendingInstallRow {
+  shop: string;
+  expiresAt: string;
+  expired: boolean;
+  /** Only in a global admin's list. */
+  userEmail?: string | null;
+  /** The Shopify app the install link was built for; only in a global admin's list. */
+  clientId?: string | null;
+}
+
+export interface ShopApp {
+  id: string;
+  clientId: string;
+  label: string;
+  registeredInGadget: boolean;
+  storeDomains: string[];
+}

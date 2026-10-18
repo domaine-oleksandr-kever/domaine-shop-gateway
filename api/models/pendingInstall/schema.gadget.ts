@@ -7,6 +7,7 @@ export const schema: GadgetModel = {
   type: "gadget/model-schema/v2",
   storageKey: "GT0biDUTFR5o",
   fields: {
+    clientId: { type: "string", storageKey: "ybhVgb4jkELX" },
     expiresAt: {
       type: "dateTime",
       includeTime: true,

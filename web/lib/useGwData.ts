@@ -7,13 +7,14 @@ export interface GwData<T> {
   reload: () => void;
 }
 
-/** Loads one admin API path and reloads it on demand; a stale response never overwrites a newer one. */
-export function useGwData<T>(path: string): GwData<T> {
+/** Loads one admin API path (none while `path` is null) and reloads it on demand; a stale response never overwrites a newer one. */
+export function useGwData<T>(path: string | null): GwData<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
 
   useEffect(() => {
+    if (!path) return;
     let current = true;
     gwFetch<T>(path).then(
       (result) => {

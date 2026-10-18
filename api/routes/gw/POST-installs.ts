@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { gwRoute } from "../../lib/gw";
+import { gwRoute, requireGlobalAdmin } from "../../lib/gw";
+import { defaultShopifyClientId } from "../../lib/config";
 import { HttpError } from "../../lib/httpError";
-import { devDashboardUrl, probeShop, reserveInstall, shopInstallUrl } from "../../lib/installs";
+import { devDashboardUrl, probeShop, reserveInstall, resolveClientId, shopInstallUrl } from "../../lib/installs";
 import { normalizeShopDomain } from "../../lib/validate";
 
-const Body = z.strictObject({ shop: z.string() });
+const Body = z.strictObject({ shop: z.string(), clientId: z.string().trim().min(1).optional() });
 
 const REFUSALS: Record<string, [number, string]> = {
   "exists-404": [404, "store not found: check the handle"],
@@ -17,15 +18,18 @@ export default gwRoute<{ Body: unknown }>(async ({ api, logger, request, connect
   const parsed = Body.safeParse(request.body);
   const shopDomain = parsed.success ? normalizeShopDomain(parsed.data.shop) : null;
   if (!shopDomain) throw new HttpError(400, "shop must be a store handle or <handle>.myshopify.com");
+  const requested = parsed.data?.clientId;
+  if (requested !== undefined) requireGlobalAdmin(user);
+  const clientId = resolveClientId(connections.shopify.apiKeys, defaultShopifyClientId, requested);
+  if (requested && !clientId) throw new HttpError(400, "unknown app client id: add the app in Gadget first");
 
   const started = Date.now();
   const probe = await probeShop(shopDomain);
-  const outcome = probe === "missing" ? "exists-404" : await reserveInstall(api, logger, user, shopDomain);
+  const outcome = probe === "missing" ? "exists-404" : await reserveInstall(api, logger, user, shopDomain, clientId);
   logger.info({ shop: shopDomain, outcome, probe, durationMs: Date.now() - started }, "install request");
   if (outcome !== "reserved") throw new HttpError(...REFUSALS[outcome]);
 
-  const installUrl = shopInstallUrl(shopDomain, connections.shopify.apiKeys);
-  if (installUrl) return { shop: shopDomain, installUrl };
+  if (clientId) return { shop: shopDomain, installUrl: shopInstallUrl(shopDomain, clientId) };
   return {
     shop: shopDomain,
     manual: true,

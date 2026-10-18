@@ -110,12 +110,16 @@ schema errors.
 
 ## Store onboarding (self-serve)
 
-1. `POST /gw/installs { shop }` → `validate.ts` normalizes the domain → `probeShop`
+1. `POST /gw/installs { shop, clientId? }` (`clientId` for global admins only: a production
+   store's own client app) → `validate.ts` normalizes the domain → `resolveClientId`
+   (`installs.ts`) picks the app: the requested `clientId`, refused with 400 unless it is in
+   `connections.shopify.apiKeys`; else the main app (`GATEWAY_DEFAULT_CLIENT_ID`, default the
+   `client_id` of `shopify.app.toml`) when Gadget knows it; else the only key → `probeShop`
    (`installs.ts`) sends one `HEAD https://<shop>/` without following redirects, 8 s timeout:
    404 → "store not found"; a timeout or network failure does not block → `pendingInstall`
-   row (unique per domain, 15 min) → returns the Shopify install URL
-   `https://<shop>/admin/oauth/install?client_id=<app key>` (key from
-   `connections.shopify.apiKeys`; never in git) or manual instructions. Each call logs one
+   row (unique per domain, 15 min, with the chosen `clientId`) → returns the Shopify install URL
+   `https://<shop>/admin/oauth/install?client_id=<client id>`, or manual instructions when no
+   app was picked. Each call logs one
    `install request` line: domain, `outcome` (reserved / exists-404 / already-installed /
    conflict), `probe` (exists / missing / timeout / unreachable) and `durationMs`
    (`ggt logs --env production`).
@@ -130,6 +134,19 @@ schema errors.
    `alias` = handle; `installs.ts` claims a live `pendingInstall` → `access(user, shop,
    store-admin)`; unclaimed installs are audited and stay as the defaults.
 4. `reinstall` / `uninstall` keep alias, env and enabled.
+5. `GET /gw/installs` lists the caller's reservations, active and expired (a global admin sees
+   everyone's, with user and `clientId`); the page polls it every 30 s while one is active.
+   `DELETE /gw/installs/:shop` removes an expired one for its owner or a global admin; an
+   active one answers 409, since another user may have taken it over.
+6. Client apps for production stores (`apps.ts`, `shopApp` model), all global admin only:
+   `GET /gw/apps` lists them; each row carries `registeredInGadget` (the `clientId` is in
+   `connections.shopify.apiKeys`) and `storeDomains` (installed shops whose
+   `shopifyShop.installedViaApiKey` is that `clientId`). `POST /gw/apps { clientId, label }`
+   answers 400 unless `clientId` is in `connections.shopify.apiKeys` ("add the app in Gadget
+   first") and 409 for a `clientId` already registered. `DELETE /gw/apps/:id` removes one
+   (404 when missing). Both writes are audited as `app-registered` / `app-removed`.
+   `GET /gw/config` returns `shopifyApp { appUrl, oauthCallbackUrl, scopes }`, the values the
+   Dev Dashboard form needs.
 
 ## Data model
 
@@ -139,7 +156,8 @@ schema errors.
 | `access` | `user`, `shop`, `role` read/dev/store-admin | unique per (user, shop) via `scopeByField` |
 | `invite` | `email`, `shop`, `role`, `invitedBy` | unique per (email, shop); redeemed on first sign-in |
 | `pref` | `user` (unique), `currentShop` | the `use_store` selection |
-| `pendingInstall` | `user`, `shopDomain` (unique), `expiresAt` | 15-minute reservation |
+| `pendingInstall` | `user`, `shopDomain` (unique), `expiresAt`, `clientId?` | 15-minute reservation; `clientId` is the app the install link was built for |
+| `shopApp` | `clientId` (unique), `label` | client Shopify apps a global admin registered after adding them to Gadget's Shopify connection |
 | `audit` | `user?`, `shop?`, `tool` (query/validate/admin), `operationType`, `operationName`, `allowed`, `reason`, `durationMs`, `cost` | never query text, variables or responses |
 | `shopifyShop` | Gadget's shop fields + `alias` (unique), `env` dev/prod, `enabled` | token held by Gadget's connection |
 

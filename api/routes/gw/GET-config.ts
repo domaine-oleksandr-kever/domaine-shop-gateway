@@ -1,7 +1,18 @@
 import { RouteHandler } from "gadget-server";
-import { corsOptions, issuer, mcpCommand, resourceUrl, scopesSupported, webClientId, webRedirectUri } from "../../lib/config";
+import {
+  corsOptions,
+  issuer,
+  mcpCommand,
+  resourceUrl,
+  scopesSupported,
+  shopifyAppUrl,
+  shopifyRedirectUrl,
+  shopifyScopes,
+  webClientId,
+  webRedirectUri,
+} from "../../lib/config";
 
-/** Public sign-in settings for the admin page. */
+/** Public sign-in settings for the admin page, and the values a client app in the Shopify Dev Dashboard needs. */
 const route: RouteHandler = async ({ reply }) => {
   await reply.send({
     issuer,
@@ -10,6 +21,7 @@ const route: RouteHandler = async ({ reply }) => {
     redirectUri: webRedirectUri,
     scopes: scopesSupported,
     mcpCommand,
+    shopifyApp: { appUrl: shopifyAppUrl, oauthCallbackUrl: shopifyRedirectUrl, scopes: shopifyScopes },
   });
 };
 

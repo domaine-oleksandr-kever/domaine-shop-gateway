@@ -14,7 +14,7 @@ dev stores. See [TODO / roadmap](#todo--roadmap) for what is still open and
 | Part | Where | What it does |
 |---|---|---|
 | Gateway app | Gadget, app `domaine-shop-gateway` | Hosts the MCP endpoint `/mcp`, the admin page `/`, the store registry, roles, the GraphQL policy and the audit log |
-| Shopify app | Dev Dashboard org "Domaine (North America)", apps `domaine-shop-gateway-dev` (development env) and `domaine-shop-gateway` (production env) | The key. Installing it on a store gives the gateway an offline Admin API token for that store. Shopify runs nothing else |
+| Shopify app | Dev Dashboard org "Domaine (North America)", apps `domaine-shop-gateway-dev` (development env) and `domaine-shop-gateway` (production env) | The key. Installing it on a store gives the gateway an offline Admin API token for that store. Shopify runs nothing else. Production client stores install their own custom app, registered under "Shopify apps" |
 | Identity provider | WorkOS AuthKit, workspace `kever-sandbox`, environment Staging, domain `meaningful-pink-49-staging.authkit.app` | Google sign-in, OAuth 2.1 server for MCP clients and for the admin page |
 | Clients | Claude Code (`claude mcp add`), claude.ai custom connector (same URL), Claude desktop through the connector | Call `stores`, `use_store`, `query`, `validate`, `whoami` |
 
@@ -113,6 +113,22 @@ the same connector.
 If the install page cannot be opened from the gateway, the page shows how to install from
 the Dev Dashboard; the claim still works by store domain.
 
+The **Unfinished installs** block lists reservations that have not reached the gateway: an
+active one shows the minutes left, an expired one shows an error and a **Dismiss** button.
+
+### Production store (global admin only)
+
+1. Under **Store type** choose **Production store**.
+2. In the Shopify Dev Dashboard create an app `gateway-<client>` with the App URL, redirect
+   URL and scopes the page shows (each has a **Copy** button).
+3. Choose distribution **Custom** and enter the client's store or Plus organization. This
+   choice is permanent.
+4. Add the app's client id and secret in Gadget: Settings → Plugins → Shopify.
+5. Register the app in the **Shopify apps** section.
+6. Pick it, enter the store handle and click **Generate install link**.
+7. A person with "Manage apps" on the client store opens the link. The store arrives as
+   `prod` and disabled until a global admin enables it; it is read-only.
+
 ## Operate it
 
 ### Environment variables (Gadget → Settings → Environment variables, or `ggt var set`)
@@ -124,6 +140,7 @@ the Dev Dashboard; the claim still works by store domain.
 | `GATEWAY_ADMIN_SUBS` | empty | Comma list of WorkOS user ids that are global admins; set it before the first deploy or nobody can enable prod stores |
 | `WORKOS_ISSUER` | the staging AuthKit domain | AuthKit domain; change when moving to a WorkOS production environment |
 | `GATEWAY_BASE_URL` | derived from `GADGET_APP`/`GADGET_ENV`, else the dev URL | Public base URL used in metadata and the MCP resource |
+| `GATEWAY_DEFAULT_CLIENT_ID` | `client_id` in `shopify.app.toml` | Client id of the main app that development-store installs use; ignored when Gadget's Shopify connection does not hold it, and then the only app in the connection is used |
 | `GATEWAY_VALIDATE` | on | `0` skips the pre-send schema check; `query` and `validate` answer `validated: false` |
 
 No secrets are needed: JWT verification uses AuthKit's public JWKS and the Shopify token comes
