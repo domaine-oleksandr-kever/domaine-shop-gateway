@@ -25,12 +25,12 @@ function StorePage({ me }: { me: Me }) {
     );
   }
   if (!stores) return <p className="muted">Loading store…</p>;
-  if (!store) {
+  if (!store?.installed) {
     return (
       <>
         <h1>Store not found</h1>
         <p>
-          You have no role on this store. <Link to="/">Back to my stores</Link>
+          {store ? "The app was uninstalled from this store." : "You have no role on this store."} <Link to="/">Back to my stores</Link>
         </p>
       </>
     );

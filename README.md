@@ -116,6 +116,12 @@ the Dev Dashboard; the claim still works by store domain.
 The **Unfinished installs** block lists reservations that have not reached the gateway: an
 active one shows the minutes left, an expired one shows an error and a **Dismiss** button.
 
+A global admin also sees stores that uninstalled the app (status "Uninstalled") and a
+**Delete** button on every store. Uninstall the app in the store's Apps settings first, then
+press **Delete**: an installed store answers with an error and a link to that page. Gadget
+counts uninstalled shop records toward the Hobby plan's install limit, so deleting them frees
+install slots.
+
 ### Production store (global admin only)
 
 1. Under **Store type** choose **Production store**.
@@ -151,7 +157,7 @@ from Gadget's connection.
 
 ```
 yarn install            # once
-yarn test               # vitest: policy, admin input validation, members, installs, schema, graphql-validate, preflight, mcp
+yarn test               # vitest: policy, admin input validation, members, installs, stores, schema, graphql-validate, preflight, mcp
 npx tsc -p tsconfig.api.json --noEmit
 npx -y ggt@latest push  # upload to the development environment
 npx -y ggt@latest status / logs / var list
@@ -243,7 +249,7 @@ Ordered by what the demo and the first users need.
 ```
 api/lib/        auth (JWT), identity (userinfo, invites), roles, policy (+tests), shopify (Admin API call),
                 schema (Admin schema cache), graphql-validate, preflight (pre-send check),
-                mcp (tools), gw (admin route wrapper), members, installs, validate (admin input), audit, config
+                mcp (tools), gw (admin route wrapper), members, installs, stores (list, delete uninstalled), validate (admin input), audit, config
 api/routes/     POST-mcp (MCP endpoint), GET-oauth-protected-resource, .well-known/*, gw/* (admin JSON API)
 api/models/     user, access, pref, audit, invite, pendingInstall, shopifyShop (+alias/env/enabled)
 web/            React Router v7 admin page: sign-in (PKCE), dashboard, store page

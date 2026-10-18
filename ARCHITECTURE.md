@@ -147,6 +147,12 @@ schema errors.
    (404 when missing). Both writes are audited as `app-registered` / `app-removed`.
    `GET /gw/config` returns `shopifyApp { appUrl, oauthCallbackUrl, scopes }`, the values the
    Dev Dashboard form needs.
+7. `GET /gw/stores` (`stores.ts`) returns the caller's `storeGrants` with `installed: true`; a
+   global admin also gets shops in state `uninstalled` (`installed: false`, never in
+   `storeGrants`, so neither MCP nor `requireStore` sees them). `DELETE /gw/stores/:id`
+   (global admin) deletes the record first (`api.internal.shopifyShop.delete`), then its
+   `access`/`invite`/expired `pendingInstall` rows, audited as `store-removed`; 404 when unknown, 409 while the app is still installed or a reinstall
+   reservation is active. Gadget's Hobby plan counts uninstalled records toward its install limit.
 
 ## Data model
 

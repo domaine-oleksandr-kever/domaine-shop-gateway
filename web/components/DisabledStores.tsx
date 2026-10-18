@@ -8,7 +8,7 @@ import { EnvBadge } from "./Badges";
 export function DisabledStores({ stores, onChange }: { stores: Store[]; onChange: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const disabled = stores.filter((store) => !store.enabled);
+  const disabled = stores.filter((store) => store.installed && !store.enabled);
 
   const enable = async (store: Store) => {
     setBusyId(store.id);

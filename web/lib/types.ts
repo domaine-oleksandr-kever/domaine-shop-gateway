@@ -27,6 +27,8 @@ export interface Store {
   enabled: boolean;
   role: StoreRole;
   installedAt: string;
+  /** False for a shop that uninstalled the app; only a global admin's list has such rows. */
+  installed: boolean;
 }
 
 export interface Member {

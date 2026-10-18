@@ -16,7 +16,7 @@ function Dashboard({ globalAdmin }: { globalAdmin: boolean }) {
   const { data: stores, error, reload } = useGwData<Store[]>("/gw/stores");
   const { data: installs, error: installsError, reload: reloadInstalls } = useGwData<PendingInstallRow[]>("/gw/installs");
   const apps = useGwData<ShopApp[]>(globalAdmin ? "/gw/apps" : null);
-  // A finished install drops its reservation and adds a store, so both lists change together.
+  // A finished install or a deleted store changes both the stores and the reservations.
   const onInstallChange = useCallback(() => {
     reloadInstalls();
     reload();
@@ -30,7 +30,7 @@ function Dashboard({ globalAdmin }: { globalAdmin: boolean }) {
             {error}
           </p>
         )}
-        {stores ? <StoresTable stores={stores} /> : !error && <p className="muted">Loading stores…</p>}
+        {stores ? <StoresTable stores={stores} globalAdmin={globalAdmin} onChange={onInstallChange} /> : !error && <p className="muted">Loading stores…</p>}
       </section>
       <section aria-labelledby="add-store-heading">
         <h2 id="add-store-heading">Add store</h2>
