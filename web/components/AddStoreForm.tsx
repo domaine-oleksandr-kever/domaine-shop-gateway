@@ -188,6 +188,9 @@ function ProductionSteps({
         )}
         {app && (
           <span className="stack">
+            <a className="button" href={app.devDashboardUrl} target="_blank" rel="noopener">
+              Open the Dev Dashboard
+            </a>
             <CopyValue label="App URL" value={app.appUrl} />
             <CopyValue label="Redirect URL" value={app.oauthCallbackUrl} />
             <CopyValue label="Scopes" value={app.scopes.join(", ")} />

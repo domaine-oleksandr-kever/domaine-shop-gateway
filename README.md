@@ -140,6 +140,7 @@ active one shows the minutes left, an expired one shows an error and a **Dismiss
 | `GATEWAY_ADMIN_SUBS` | empty | Comma list of WorkOS user ids that are global admins; set it before the first deploy or nobody can enable prod stores |
 | `WORKOS_ISSUER` | the staging AuthKit domain | AuthKit domain; change when moving to a WorkOS production environment |
 | `GATEWAY_BASE_URL` | derived from `GADGET_APP`/`GADGET_ENV`, else the dev URL | Public base URL used in metadata and the MCP resource |
+| `GATEWAY_DEV_DASHBOARD_URL` | `https://dev.shopify.com/dashboard` | Link behind "Open the Dev Dashboard" on the Production store steps; set it to the organization's apps page, `https://dev.shopify.com/dashboard/<org id>/apps` |
 | `GATEWAY_DEFAULT_CLIENT_ID` | `client_id` in `shopify.app.toml` | Client id of the main app that development-store installs use; ignored when Gadget's Shopify connection does not hold it, and then the only app in the connection is used |
 | `GATEWAY_VALIDATE` | on | `0` skips the pre-send schema check; `query` and `validate` answer `validated: false` |
 

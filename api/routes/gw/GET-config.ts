@@ -1,6 +1,7 @@
 import { RouteHandler } from "gadget-server";
 import {
   corsOptions,
+  devDashboardUrl,
   issuer,
   mcpCommand,
   resourceUrl,
@@ -21,7 +22,7 @@ const route: RouteHandler = async ({ reply }) => {
     redirectUri: webRedirectUri,
     scopes: scopesSupported,
     mcpCommand,
-    shopifyApp: { appUrl: shopifyAppUrl, oauthCallbackUrl: shopifyRedirectUrl, scopes: shopifyScopes },
+    shopifyApp: { devDashboardUrl, appUrl: shopifyAppUrl, oauthCallbackUrl: shopifyRedirectUrl, scopes: shopifyScopes },
   });
 };
 

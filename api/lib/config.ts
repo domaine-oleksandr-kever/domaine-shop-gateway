@@ -50,6 +50,8 @@ export function isEmailAllowed(email: string): boolean {
   return allowedEmails.includes(lower) || allowedEmailDomains.includes(lower.split("@").pop() ?? "");
 }
 
+/** Where an admin creates a client app: the organization's apps page, `https://dev.shopify.com/dashboard/<org id>/apps`. */
+export const devDashboardUrl = process.env.GATEWAY_DEV_DASHBOARD_URL || "https://dev.shopify.com/dashboard";
 /** Client id of the main (dev-store) Shopify app, used when an install names no app; must match `client_id` in shopify.app.toml (a test checks it). */
 export const defaultShopifyClientId = process.env.GATEWAY_DEFAULT_CLIENT_ID || "b73a7f59b61391d5901163e77050f8c8";
 /** What a client app in the Shopify Dev Dashboard needs so Gadget's Shopify connection handles its installs. */

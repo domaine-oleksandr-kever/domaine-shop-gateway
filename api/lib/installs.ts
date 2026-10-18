@@ -24,8 +24,6 @@ export interface PendingInstallView {
   clientId?: string | null;
 }
 
-export const devDashboardUrl = "https://dev.shopify.com/dashboard";
-
 /**
  * Shopify's install entry for one shop (the URL Shopify CLI opens); Shopify signs the user in, shows the scopes and
  * hands the shop to the app URL.

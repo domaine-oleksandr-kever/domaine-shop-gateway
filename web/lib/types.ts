@@ -9,7 +9,7 @@ export interface GatewayConfig {
   scopes: string[];
   mcpCommand: string;
   /** What to enter for a client app in the Shopify Dev Dashboard. */
-  shopifyApp: { appUrl: string; oauthCallbackUrl: string; scopes: string[] };
+  shopifyApp: { devDashboardUrl: string; appUrl: string; oauthCallbackUrl: string; scopes: string[] };
 }
 
 export interface Me {

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { gwRoute, requireGlobalAdmin } from "../../lib/gw";
-import { defaultShopifyClientId } from "../../lib/config";
+import { defaultShopifyClientId, devDashboardUrl } from "../../lib/config";
 import { HttpError } from "../../lib/httpError";
-import { devDashboardUrl, probeShop, reserveInstall, resolveClientId, shopInstallUrl } from "../../lib/installs";
+import { probeShop, reserveInstall, resolveClientId, shopInstallUrl } from "../../lib/installs";
 import { normalizeShopDomain } from "../../lib/validate";
 
 const Body = z.strictObject({ shop: z.string(), clientId: z.string().trim().min(1).optional() });
