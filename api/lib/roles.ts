@@ -91,7 +91,8 @@ async function withGatewayFields(
   return { id: record.id, myshopifyDomain, installedAt, ...fields };
 }
 
-async function accessRolesByShop(api: Api, user: GatewayUser): Promise<Map<string, StoreRole>> {
+/** The user's access-row roles by shop id; empty for a global admin (role comes from `effectiveRole`) or a user without an email. */
+export async function accessRolesByShop(api: Api, user: GatewayUser): Promise<Map<string, StoreRole>> {
   if (user.globalRole === "admin" || !user.email) return new Map();
   const rows = await api.access.findMany({
     filter: { userId: { equals: user.id } },

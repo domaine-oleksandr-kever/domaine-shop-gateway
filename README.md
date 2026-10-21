@@ -104,6 +104,9 @@ the same connector.
    cannot be installed there (a client store that is not a development store), Shopify
    refuses on its own page after you sign in; the gateway cannot check that beforehand. If
    Shopify does not open, the page shows the install link to click.
+   To reinstall a store that was already connected, uninstall the app in the store's Shopify
+   admin first, wait until the gateway shows it as "Uninstalled" (usually within 5 minutes),
+   then press **Install app**.
 3. After you approve, the store appears in **My stores** with you as `store-admin`. Dev
    stores are enabled at once; prod stores show as disabled until a global admin enables them.
 4. On the store page add members by email with a role. People who have not signed in yet
@@ -116,10 +119,14 @@ the Dev Dashboard; the claim still works by store domain.
 The **Unfinished installs** block lists reservations that have not reached the gateway: an
 active one shows the minutes left, an expired one shows an error and a **Dismiss** button.
 
-A global admin also sees stores that uninstalled the app (status "Uninstalled") and a
+A store that uninstalled the app stays in **My stores** for everyone with a role on it, with
+status "Uninstalled": reinstall it with **Add store** to reconnect, and roles and alias come
+back. Claude Code's `stores` tool lists it as uninstalled
+too, but `query` refuses it until then. A global admin sees every uninstalled store and a
 **Delete** button on every store. Uninstall the app in the store's Apps settings first, then
-press **Delete**: an installed store answers with an error and a link to that page. Gadget
-counts uninstalled shop records toward the Hobby plan's install limit, so deleting them frees
+press **Delete**: a store whose app Shopify still reports as installed answers with an error
+and a link to that page, even if the gateway shows it as uninstalled. Gadget counts
+uninstalled shop records toward the Hobby plan's install limit, so deleting them frees
 install slots.
 
 ### Production store (global admin only)
@@ -208,9 +215,10 @@ Ordered by what the demo and the first users need.
    install the production Shopify app `domaine-shop-gateway` on the stores, add the WorkOS
    resource indicator `https://domaine-shop-gateway.gadget.app/mcp` (default), sign in once on
    the production page; keep the dev URL for development only.
-2a. **Show uninstalled stores** in `stores()` and on the page as "uninstalled — reinstall"
-   instead of hiding them (roles and alias survive an uninstall; today the store just
-   disappears until reinstalled).
+2a. **Show uninstalled stores**, in progress: `stores` and the page list them as uninstalled
+   with a reconnect hint; `uninstall` skips a late `app/uninstalled` while Shopify still accepts
+   the token. Still to do on the dev environment: confirm that Gadget keeps the record installed
+   when `uninstall` returns without `save`.
 3. ~~Add the claude.ai connector on the production URL and test from chat~~ DONE 2026-10-12 on a
    personal Pro account. Still to do: a Team Owner adds it for the Domaine organization.
 4. **WorkOS production environment** with Domaine's own Google OAuth client (the Staging one
@@ -249,7 +257,7 @@ Ordered by what the demo and the first users need.
 ```
 api/lib/        auth (JWT), identity (userinfo, invites), roles, policy (+tests), shopify (Admin API call),
                 schema (Admin schema cache), graphql-validate, preflight (pre-send check),
-                mcp (tools), gw (admin route wrapper), members, installs, stores (list, delete uninstalled), validate (admin input), audit, config
+                mcp (tools), gw (admin route wrapper), members, installs, installState (live "is the app installed" probe), stores (list, delete uninstalled), validate (admin input), audit, config
 api/routes/     POST-mcp (MCP endpoint), GET-oauth-protected-resource, .well-known/*, gw/* (admin JSON API)
 api/models/     user, access, pref, audit, invite, pendingInstall, shopifyShop (+alias/env/enabled)
 web/            React Router v7 admin page: sign-in (PKCE), dashboard, store page

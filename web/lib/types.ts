@@ -27,7 +27,7 @@ export interface Store {
   enabled: boolean;
   role: StoreRole;
   installedAt: string;
-  /** False for a shop that uninstalled the app; only a global admin's list has such rows. */
+  /** False for a shop that uninstalled the app; listed for a global admin and for members with a role on it. */
   installed: boolean;
 }
 

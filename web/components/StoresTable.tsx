@@ -48,7 +48,13 @@ export function StoresTable({ stores, globalAdmin, onChange }: { stores: Store[]
                 <td>
                   <EnvBadge env={store.env} />
                 </td>
-                <td>{store.installed ? <EnabledText enabled={store.enabled} /> : <span className="muted">Uninstalled</span>}</td>
+                <td>
+                  {store.installed ? (
+                    <EnabledText enabled={store.enabled} />
+                  ) : (
+                    <span className="muted">Uninstalled: reinstall with Add store to reconnect</span>
+                  )}
+                </td>
                 <td>{store.role}</td>
                 {globalAdmin && (
                   <td>

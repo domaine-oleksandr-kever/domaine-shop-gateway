@@ -1,7 +1,7 @@
 import { gwRoute, requireGlobalAdmin } from "../../../lib/gw";
 import { removeStore } from "../../../lib/stores";
 
-export default gwRoute<{ Params: { id: string } }>(async ({ api, logger, request }, user) => {
+export default gwRoute<{ Params: { id: string } }>(async ({ api, connections, logger, request }, user) => {
   requireGlobalAdmin(user);
-  await removeStore(api, logger, user, request.params.id);
+  await removeStore(api, connections.shopify, logger, user, request.params.id);
 });

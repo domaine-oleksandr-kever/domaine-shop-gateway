@@ -10,6 +10,7 @@ import { invalidDocument, preflight, resultExtras } from "./preflight";
 import { findGrant, storeGrants, type GatewayShop, type StoreGrant } from "./roles";
 import { adminSchema } from "./schema";
 import { formatResult, queryCost, runAdminGraphql, type QueryCost } from "./shopify";
+import { listStores } from "./stores";
 
 export interface McpContext {
   principal: Principal;
@@ -20,7 +21,8 @@ export interface McpContext {
 }
 
 const INSTRUCTIONS = `Domaine Shop Gateway: Shopify Admin GraphQL API 2026-10 on Domaine stores, with your own role per store.
-- Call \`stores\` to see the stores you can use (alias, domain, env, role). Pick one with \`use_store\` or pass \`store\` to \`query\`.
+- Call \`stores\` to see the stores you can use (under \`stores\`: alias, domain, env, role). Pick one with \`use_store\` or pass \`store\` to \`query\`.
+- A store under \`uninstalled\` had the app removed in Shopify and cannot be queried until someone reinstalls the app from the gateway page (Add store).
 - \`query\` takes ONE GraphQL operation (fragments allowed) plus optional \`variables\` as a JSON object. Introspection and subscriptions are refused.
 - env=prod stores are read-only: every mutation is refused there.
 - env=dev stores allow mutations only for roles dev/store-admin and only these root fields: metafieldsSet, productUpdate, productCreate, metafieldDefinitionCreate, metaobjectCreate, metaobjectUpdate, publishablePublish, publishableUnpublish.
@@ -29,6 +31,9 @@ const INSTRUCTIONS = `Domaine Shop Gateway: Shopify Admin GraphQL API 2026-10 on
 - An \`ACCESS_DENIED\` error means the app lacks a Shopify scope for that field, not that your role is too low.
 - A refusal names the rule that refused; do not retry the same document.
 - Validate a mutation with \`validate\`, show it to the user, then run it with \`query\` in a later turn.`;
+
+const UNINSTALLED_HINT =
+  "the app was uninstalled from this store in Shopify; reinstall it from the Domaine Shop Gateway page (Add store → Install app) to reconnect it";
 
 export function createMcpServer(context: McpContext): McpServer {
   const server = new McpServer({ name: "domaine-shop-gateway", version: "0.3.0" }, { instructions: INSTRUCTIONS });
@@ -48,23 +53,29 @@ export function createMcpServer(context: McpContext): McpServer {
   server.registerTool(
     "stores",
     {
-      description: "List the stores you can use: alias, domain, env (dev/prod), enabled, your role, and which is current.",
+      description:
+        "List the stores you can use (`stores`: alias, domain, env (dev/prod), enabled, your role, and which is current) and the stores whose app was uninstalled in Shopify (`uninstalled`).",
       annotations: { readOnlyHint: true },
     },
     async () => {
       const { user, rejected } = await resolve();
       if (rejected) return refusal(rejected);
-      const [grants, currentShopId] = await Promise.all([storeGrants(context.api, user), currentShop(context, user)]);
-      return text(
-        grants.map(({ shop, role }) => ({
-          alias: shop.alias,
-          domain: shop.myshopifyDomain,
-          env: shop.env,
-          enabled: shop.enabled,
-          role,
-          current: shop.id === currentShopId,
-        }))
-      );
+      const [rows, currentShopId] = await Promise.all([listStores(context.api, user), currentShop(context, user)]);
+      return text({
+        stores: rows
+          .filter((row) => row.installed)
+          .map((row) => ({
+            alias: row.alias,
+            domain: row.domain,
+            env: row.env,
+            enabled: row.enabled,
+            role: row.role,
+            current: row.id === currentShopId,
+          })),
+        uninstalled: rows
+          .filter((row) => !row.installed)
+          .map((row) => ({ alias: row.alias, domain: row.domain, hint: UNINSTALLED_HINT })),
+      });
     }
   );
 

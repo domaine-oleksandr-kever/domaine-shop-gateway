@@ -36,7 +36,16 @@ async function connect() {
   const context = {
     principal: { sub: "s1" },
     bearer: "bearer",
-    api: { audit: { create: vi.fn(async (row: Record<string, unknown>) => void auditRows.push(row)) } },
+    api: {
+      audit: { create: vi.fn(async (row: Record<string, unknown>) => void auditRows.push(row)) },
+      access: { findMany: vi.fn(async () => [{ shopId: "1", role: "dev" }, { shopId: "2", role: "read" }]) },
+      shopifyShop: {
+        findMany: vi.fn(async () => [
+          { id: "2", alias: "gone", myshopifyDomain: "gone.myshopify.com", env: "prod", enabled: true, createdAt: new Date(0) },
+        ]),
+      },
+      pref: { maybeFindFirst: vi.fn(async () => ({ currentShopId: "1" })) },
+    },
     connections: { shopify: {} },
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   } as unknown as McpContext;
@@ -115,5 +124,18 @@ describe("validate", () => {
     expect(body.policy.reason).toEqual(expect.any(String));
     expect(adminSchema).not.toHaveBeenCalled();
     expect(auditRows).toEqual([expect.objectContaining({ tool: "validate", allowed: false, reason: body.policy.reason })]);
+  });
+});
+
+describe("stores", () => {
+  it("lists usable stores and, separately, uninstalled ones with a reconnect hint", async () => {
+    const call = await connect();
+    const result = await call("stores", {});
+
+    expect(result.isError).toBe(false);
+    expect(JSON.parse(result.text)).toEqual({
+      stores: [{ alias: "dev-a", domain: "dev-a.myshopify.com", env: "dev", enabled: true, role: "dev", current: true }],
+      uninstalled: [{ alias: "gone", domain: "gone.myshopify.com", hint: expect.stringContaining("Add store") }],
+    });
   });
 });

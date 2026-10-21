@@ -1,10 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "./httpError";
 import type { GatewayUser } from "./identity";
+import { probeInstalled } from "./installState";
+import type { ShopifyConnection } from "./shopify";
 import { listStores, removeStore } from "./stores";
 
+vi.mock("./installState", () => ({ probeInstalled: vi.fn() }));
+
 type Api = Parameters<typeof removeStore>[0];
-type Logger = Parameters<typeof removeStore>[1];
+type Logger = Parameters<typeof removeStore>[2];
+
+const shopify = {} as ShopifyConnection;
 
 const logger = { error: vi.fn() } as unknown as Logger;
 const user = (fields: Partial<GatewayUser> = {}): GatewayUser => ({
@@ -18,7 +24,13 @@ const user = (fields: Partial<GatewayUser> = {}): GatewayUser => ({
 });
 const createdAt = new Date("2026-10-01T00:00:00Z");
 
-type Filter = { id?: { equals: string }; state?: { inState: string } };
+type Filter = { id?: { equals?: string; in?: string[] }; state?: { inState: string } };
+
+let accessRows: { shopId: string; role: string }[];
+beforeEach(() => {
+  accessRows = [{ shopId: "s1", role: "dev" }];
+  vi.mocked(probeInstalled).mockReset().mockResolvedValue({ state: "uninstalled" });
+});
 
 function listingApi() {
   const installed = { id: "s1", alias: "acme", myshopifyDomain: "acme.myshopify.com", env: "prod", enabled: true, planName: null, planDisplayName: null, createdAt };
@@ -28,9 +40,13 @@ function listingApi() {
   ];
   return {
     shopifyShop: {
-      findMany: vi.fn(async ({ filter }: { filter: Filter }) => (filter.state?.inState === "created.installed" ? [installed] : uninstalled)),
+      findMany: vi.fn(async ({ filter }: { filter: Filter }) =>
+        filter.state?.inState === "created.installed"
+          ? [installed]
+          : uninstalled.filter((shop) => !filter.id?.in || filter.id.in.includes(shop.id))
+      ),
     },
-    access: { findMany: vi.fn(async () => [{ shopId: "s1", role: "dev" }]) },
+    access: { findMany: vi.fn(async () => accessRows) },
     internal: { shopifyShop: { update: vi.fn() } },
   };
 }
@@ -48,12 +64,36 @@ describe("listStores", () => {
     expect(api.internal.shopifyShop.update).not.toHaveBeenCalled();
   });
 
-  it("shows other users only their installed stores", async () => {
+  it("shows other users their installed stores and skips the uninstalled lookup when they hold no other row", async () => {
     const api = listingApi();
     const rows = await listStores(api as unknown as Api, user({ globalRole: "none" }));
     expect(rows).toEqual([
       { id: "s1", alias: "acme", domain: "acme.myshopify.com", env: "prod", enabled: true, role: "dev", installedAt: createdAt, installed: true },
     ]);
+    expect(api.shopifyShop.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows other users the uninstalled shops they hold an access row on, with that row's role", async () => {
+    accessRows = [
+      { shopId: "s1", role: "dev" },
+      { shopId: "s2", role: "read" },
+    ];
+    const api = listingApi();
+    const rows = await listStores(api as unknown as Api, user({ globalRole: "none" }));
+    expect(rows.map(({ id, role, installed }) => ({ id, role, installed }))).toEqual([
+      { id: "s1", role: "dev", installed: true },
+      { id: "s2", role: "read", installed: false },
+    ]);
+    expect(api.shopifyShop.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filter: { state: { inState: "created.uninstalled" }, id: { in: ["s2"] } } })
+    );
+  });
+
+  it("shows a user without an email no uninstalled shops", async () => {
+    accessRows = [{ shopId: "s2", role: "read" }];
+    const api = listingApi();
+    const rows = await listStores(api as unknown as Api, user({ globalRole: "none", email: null }));
+    expect(rows).toEqual([]);
     expect(api.shopifyShop.findMany).toHaveBeenCalledTimes(1);
   });
 });
@@ -104,14 +144,14 @@ async function refusal(run: Promise<unknown>): Promise<HttpError> {
 describe("removeStore", () => {
   it("answers 404 for an unknown shop", async () => {
     const { api, calls } = removalApi(null);
-    const error = await refusal(removeStore(api as unknown as Api, logger, user(), "s9", now));
+    const error = await refusal(removeStore(api as unknown as Api, shopify, logger, user(), "s9", now));
     expect([error.status, error.message]).toEqual([404, "store not found"]);
     expect(calls).toEqual([]);
   });
 
   it("answers 409 while the app is still installed and deletes nothing", async () => {
     const { api, calls } = removalApi({ id: "s1", myshopifyDomain: "acme.myshopify.com", state: "installed" });
-    const error = await refusal(removeStore(api as unknown as Api, logger, user(), "s1", now));
+    const error = await refusal(removeStore(api as unknown as Api, shopify, logger, user(), "s1", now));
     expect(error.status).toBe(409);
     expect(error.message).toContain("the app is still installed in acme.myshopify.com");
     expect(calls).toEqual([]);
@@ -119,14 +159,43 @@ describe("removeStore", () => {
 
   it("answers 409 while a reinstall reservation is active and deletes nothing", async () => {
     const { api, calls } = removalApi({ id: "s1", myshopifyDomain: "acme.myshopify.com", state: "uninstalled" }, new Date("2026-10-18T12:10:00Z"));
-    const error = await refusal(removeStore(api as unknown as Api, logger, user(), "s1", now));
+    const error = await refusal(removeStore(api as unknown as Api, shopify, logger, user(), "s1", now));
     expect([error.status, error.message]).toEqual([409, "install is still in progress"]);
     expect(calls).toEqual([]);
   });
 
+  it("answers 409 when Shopify still accepts the stored token and deletes nothing", async () => {
+    vi.mocked(probeInstalled).mockResolvedValue({ state: "installed" });
+    const { api, calls } = removalApi({ id: "s1", myshopifyDomain: "acme.myshopify.com", state: "uninstalled" });
+    const error = await refusal(removeStore(api as unknown as Api, shopify, logger, user(), "s1", now));
+    expect(error.status).toBe(409);
+    expect(error.message).toContain("still installed in Shopify on acme.myshopify.com");
+    expect(probeInstalled).toHaveBeenCalledWith(shopify, { id: "s1", myshopifyDomain: "acme.myshopify.com" });
+    expect(calls).toEqual([]);
+  });
+
+  it("answers 409 when the shop is reinstalled while the live check runs and deletes nothing", async () => {
+    const shop = { id: "s1", myshopifyDomain: "acme.myshopify.com", state: "uninstalled" as "installed" | "uninstalled" };
+    vi.mocked(probeInstalled).mockImplementation(async () => {
+      shop.state = "installed";
+      return { state: "uninstalled" };
+    });
+    const { api, calls } = removalApi(shop);
+    const error = await refusal(removeStore(api as unknown as Api, shopify, logger, user(), "s1", now));
+    expect(error.status).toBe(409);
+    expect(calls).toEqual([]);
+  });
+
+  it("deletes when the live check cannot tell", async () => {
+    vi.mocked(probeInstalled).mockResolvedValue({ state: "unknown", reason: "timeout" });
+    const { api, calls } = removalApi({ id: "s1", myshopifyDomain: "acme.myshopify.com", state: "uninstalled" });
+    await removeStore(api as unknown as Api, shopify, logger, user(), "s1", now);
+    expect(calls[0]).toBe("shop s1");
+  });
+
   it("deletes the shop first, then its access rows, invites and an expired reservation, then audits", async () => {
     const { api, calls } = removalApi({ id: "s1", myshopifyDomain: "Acme.myshopify.com", state: "uninstalled" });
-    await removeStore(api as unknown as Api, logger, user(), "s1", now);
+    await removeStore(api as unknown as Api, shopify, logger, user(), "s1", now);
     expect(calls).toEqual(["shop s1", "access a1", "access a2", "invite i1", "pending p1", "audit"]);
     expect(api.access.findMany).toHaveBeenCalledWith(expect.objectContaining({ filter: { shopId: { equals: "s1" } } }));
     expect(api.pendingInstall.maybeFindFirst).toHaveBeenCalledWith(

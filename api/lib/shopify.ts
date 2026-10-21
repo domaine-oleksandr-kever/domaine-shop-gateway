@@ -20,7 +20,7 @@ export type AdminGraphqlResult =
   | { ok: true; status: number; body: AdminGraphqlBody }
   | { ok: false; status: number | null; message: string };
 
-const TOKEN_INVALID = "store token invalid — reinstall the app";
+export const TOKEN_INVALID = "store token invalid — reinstall the app";
 const UNAVAILABLE = "Shopify rate-limited/unavailable, retry";
 
 class ShopifyCallFailed extends Error {}

@@ -133,7 +133,16 @@ schema errors.
    "… App Development" display names → `dev`; else `prod`), `enabled = env === "dev"`,
    `alias` = handle; `installs.ts` claims a live `pendingInstall` → `access(user, shop,
    store-admin)`; unclaimed installs are audited and stay as the defaults.
-4. `reinstall` / `uninstall` keep alias, env and enabled.
+4. `reinstall` / `uninstall` keep alias, env and enabled. Shopify can deliver `app/uninstalled`
+   minutes late, after the store already reinstalled, and Gadget's trigger carries no event
+   time. So `uninstall` first asks Shopify with the shop's token (`installState.ts`
+   `probeInstalled`: `{ currentAppInstallation { id } }` through `runAdminGraphql`, 5 s
+   per request with one retry after a 401, so about 10 s at most). Installed → the webhook is stale: logged, audited as `uninstall-ignored`, and the
+   record is not saved. 401/403 or an invalid token → uninstalled, saved as before; any other
+   failure (402, 429, 5xx, timeout) → unknown, logged and saved as before. The action is not
+   transactional, so a slow probe cannot outlast the transaction timeout. Gadget does not
+   document whether returning without `save` also skips its own `installed → uninstalled`
+   transition; this is still to be checked on the development environment.
 5. `GET /gw/installs` lists the caller's reservations, active and expired (a global admin sees
    everyone's, with user and `clientId`); the page polls it every 30 s while one is active.
    `DELETE /gw/installs/:shop` removes an expired one for its owner or a global admin; an
@@ -147,12 +156,18 @@ schema errors.
    (404 when missing). Both writes are audited as `app-registered` / `app-removed`.
    `GET /gw/config` returns `shopifyApp { appUrl, oauthCallbackUrl, scopes }`, the values the
    Dev Dashboard form needs.
-7. `GET /gw/stores` (`stores.ts`) returns the caller's `storeGrants` with `installed: true`; a
-   global admin also gets shops in state `uninstalled` (`installed: false`, never in
-   `storeGrants`, so neither MCP nor `requireStore` sees them). `DELETE /gw/stores/:id`
-   (global admin) deletes the record first (`api.internal.shopifyShop.delete`), then its
-   `access`/`invite`/expired `pendingInstall` rows, audited as `store-removed`; 404 when unknown, 409 while the app is still installed or a reinstall
-   reservation is active. Gadget's Hobby plan counts uninstalled records toward its install limit.
+7. `GET /gw/stores` (`stores.ts`) returns the caller's `storeGrants` with `installed: true`,
+   plus shops in state `uninstalled` (`installed: false`): every one for a global admin, the
+   ones the caller has an `access` row on for everyone else. Uninstalled shops are never in
+   `storeGrants`, so `requireStore` and `query` refuse them; the MCP `stores` tool lists the
+   same set (all of them for a global admin) under `uninstalled` with a hint to reinstall via
+   Add store, and the page shows "Uninstalled" with the same hint. `DELETE /gw/stores/:id` (global admin) probes
+   an uninstalled record with `probeInstalled` first, since the record may say uninstalled
+   while Shopify still has the app: installed → 409 ("the app is still installed in Shopify…"). The state and the
+   reservation are checked after the probe, since it can take seconds. Uninstalled or unknown → deletes the record (`api.internal.shopifyShop.delete`), then its
+   `access`/`invite`/expired `pendingInstall` rows, audited as `store-removed`; 404 when
+   unknown, 409 while the record is installed or a reinstall reservation is active. Gadget's
+   Hobby plan counts uninstalled records toward its install limit.
 
 ## Data model
 
